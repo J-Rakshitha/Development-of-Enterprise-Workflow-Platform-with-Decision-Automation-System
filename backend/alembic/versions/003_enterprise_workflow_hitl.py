@@ -66,6 +66,18 @@ def upgrade() -> None:
             sa.Column("snapshot_json", sa.Text(), nullable=True),
             sa.Column("created_at", sa.DateTime(), nullable=True),
         )
+    else:
+        log_cols = _columns("conflict_action_logs")
+        for col, col_type in [
+            ("action", sa.String(30)),
+            ("previous_status", sa.String(30)),
+            ("previous_approval_status", sa.String(30)),
+            ("note", sa.Text()),
+            ("snapshot_json", sa.Text()),
+            ("created_at", sa.DateTime()),
+        ]:
+            if col not in log_cols:
+                op.add_column("conflict_action_logs", sa.Column(col, col_type, nullable=True))
 
     if "chat_sessions" not in tables:
         op.create_table(
