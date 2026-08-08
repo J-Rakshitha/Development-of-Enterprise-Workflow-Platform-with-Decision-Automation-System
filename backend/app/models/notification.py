@@ -21,4 +21,5 @@ class TeamNotification(Base):
     message: Mapped[str] = mapped_column(Text)
     related_entity_id: Mapped[int] = mapped_column(Integer, nullable=True)
     delivered: Mapped[bool] = mapped_column(Boolean, default=True)
+    acknowledged: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

@@ -22,8 +22,13 @@ export const register = (payload) => apiClient.post("/api/auth/register", payloa
 export const getMe = () => apiClient.get("/api/auth/me");
 export const listUsers = () => apiClient.get("/api/auth/users");
 
-// ---------- Monitoring (Phase B — API only, no UI change) ----------
+// ---------- Monitoring (Phase B + Milestone 4) ----------
 export const getMonitoringStatus = () => apiClient.get("/api/monitoring/status");
+export const getMonitoringHistory = (serviceName, limit = 20) =>
+  apiClient.get(`/api/monitoring/history/${serviceName}`, { params: { limit } });
+export const getMonitoringUptime = (serviceName, hours = 24) =>
+  apiClient.get(`/api/monitoring/uptime/${serviceName}`, { params: { hours } });
+export const getMonitoringSummary = () => apiClient.get("/api/monitoring/summary");
 
 // ---------- Dev-Collaboration ----------
 export const startEditSession = (payload) => apiClient.post("/api/dev-collab/edit-session/start", payload);
@@ -89,5 +94,26 @@ export const getChatMessages = (sessionId) =>
   apiClient.get(`/api/chat/sessions/${sessionId}/messages`);
 export const askChatQuestion = (sessionId, question) =>
   apiClient.post(`/api/chat/sessions/${sessionId}/ask`, { question });
+
+// ---------- Workflow Orchestration (Milestone 4) ----------
+export const listWorkflowDefinitions = () => apiClient.get("/api/workflows/definitions");
+export const startWorkflow = (templateKey, context = {}) =>
+  apiClient.post("/api/workflows/start", { template_key: templateKey, context }, { timeout: 60000 });
+export const listWorkflowRuns = (status) =>
+  apiClient.get("/api/workflows/runs", { params: status ? { status } : {} });
+export const getWorkflowRun = (runId) => apiClient.get(`/api/workflows/runs/${runId}`);
+export const getWorkflowTimeline = (runId) => apiClient.get(`/api/workflows/runs/${runId}/timeline`);
+export const resumeWorkflow = (runId) =>
+  apiClient.post(`/api/workflows/runs/${runId}/resume`, null, { timeout: 60000 });
+export const cancelWorkflow = (runId) => apiClient.post(`/api/workflows/runs/${runId}/cancel`);
+export const getWorkflowStats = () => apiClient.get("/api/workflows/stats");
+
+// ---------- Agent Metrics & Admin (Milestone 4) ----------
+export const getAgentMetrics = () => apiClient.get("/api/system/agent-metrics");
+export const acknowledgeNotification = (id) =>
+  apiClient.post(`/api/system/notifications/${id}/acknowledge`);
+export const getAdminSystemHealth = () => apiClient.get("/api/admin/system-health");
+export const triggerProbe = () => apiClient.post("/api/admin/monitoring/trigger-probe", null, { timeout: 30000 });
+export const getAdminMonitoringConfig = () => apiClient.get("/api/admin/monitoring/config");
 
 export default apiClient;

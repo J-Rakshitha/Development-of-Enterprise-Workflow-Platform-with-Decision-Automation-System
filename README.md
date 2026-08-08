@@ -147,6 +147,39 @@ Discovery → Semantic Analysis → Quality → Code Review → Notify
 
 **New enterprise tools (8 total):** `semantic_conflict_analyze`, `evaluate_code_quality`, `semantic_knowledge_search` (+ 5 existing M2 tools)
 
+### Milestone 4 — Workflow Automation & Deployment (Weeks 7–8) ✅
+
+Production-ready workflow orchestration and ops monitoring dashboards.
+
+#### Workflow Orchestration Engine
+
+| Template | Steps | HITL |
+|----------|-------|------|
+| `dev-conflict-resolution` | Validate → Semantic → AI Suggestion → **HITL** → Commit | Yes |
+| `incident-response` | Detect → Root Cause → Severity → Tool → Escalation → Link → Notify | No |
+| `full-sdlc-bridge` | Conflict + HITL → Commit → Cross-module incident correlation | Yes |
+
+**New agents:** `WorkflowOrchestratorAgent`, `SLA Watchdog Agent`
+
+**APIs:** `POST /api/workflows/start`, `GET /api/workflows/runs`, `POST /api/workflows/runs/{id}/resume`, `GET /api/workflows/stats`
+
+#### Monitoring & Admin Dashboards
+
+| Feature | Route / Page |
+|---------|--------------|
+| Ops Monitoring Dashboard | `/monitoring` — real probe charts, uptime %, agent bar chart |
+| Workflow Timeline UI | `/workflows` — start/resume/cancel + step timeline |
+| Agent performance metrics | `GET /api/system/agent-metrics` |
+| Monitoring uptime | `GET /api/monitoring/uptime/{service}`, `GET /api/monitoring/summary` |
+| Admin system health | `GET /api/admin/system-health` (admin only) |
+| Manual probe trigger | `POST /api/admin/monitoring/trigger-probe` |
+| Notification acknowledge | `POST /api/system/notifications/{id}/acknowledge` |
+| SLA auto-escalation | Background `SlaWatchdogAgent` — broadcasts `sla_breach` |
+
+**Migration:** `004_workflow_orchestration.py` — workflow tables + notification acknowledge
+
+**Deployment:** `Dockerfile` + `docker-compose.yml` for production containerization
+
 ### Milestone 3 — Agent Coordination & Memory Systems (Weeks 5–6) ✅
 
 Milestone 3 delivers a **multi-agent coordination engine** where specialized agents
@@ -678,10 +711,11 @@ Repo: [J-Rakshitha/AI-Agent-Coordination-Decision-Engine](https://github.com/J-R
 - [x] Enterprise polish — Alembic migrations, SLA countdown UI, GitHub webhook, Slack/Discord/Gmail alerts
 - [x] **Enterprise E1–E5** — Repository Discovery, Semantic Analysis, Synthesizer, Quality, RAG Search
 - [x] **Enterprise E6** — HITL, mandatory auth, branded login, chat history, per-user repo
-- [x] **60 automated tests** — full suite green from project root
+- [x] **69 automated tests** — full suite green from project root
 - [x] Branded LoginPage + Decision Trail removed from UI
 - [x] Milestone documents updated (Sprint 3: 27-Jul to 04-Aug-2026)
 - [x] GitHub push — [repo live](https://github.com/J-Rakshitha/AI-Agent-Coordination-Decision-Engine)
+- [x] **Milestone 4** — Workflow orchestration, monitoring dashboard, SLA watchdog, Docker
 - [ ] Render/Vercel deployment
 - [ ] Final demo rehearsal
 

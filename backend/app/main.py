@@ -28,8 +28,10 @@ from app.models import user  # noqa: F401
 from app.models import notification  # noqa: F401
 from app.models import enterprise  # noqa: F401
 from app.models import workflow  # noqa: F401
+from app.models import workflow_engine  # noqa: F401
 
 from app.routers import (
+    admin_routes,
     auth_routes,
     chat_routes,
     dev_collab_routes,
@@ -38,7 +40,10 @@ from app.routers import (
     system_routes,
     websocket_routes,
     tool_routes,
+    workflow_routes,
 )
+from app.services.workflow_orchestrator_service import seed_workflow_definitions
+from app.services.sla_watchdog_scheduler import start_sla_watchdog, stop_sla_watchdog
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("main")
@@ -49,8 +54,13 @@ async def lifespan(app: FastAPI):
     logger.info(f"Starting {settings.APP_NAME} ({settings.ENV})")
     await init_db()
     await seed_demo_users()
+    from app.core.database import AsyncSessionLocal
+    async with AsyncSessionLocal() as db:
+        await seed_workflow_definitions(db)
     await start_monitoring()
+    await start_sla_watchdog()
     yield
+    await stop_sla_watchdog()
     await stop_monitoring()
     logger.info("Shutting down.")
 
@@ -81,6 +91,8 @@ app.include_router(monitoring_routes.router)
 app.include_router(system_routes.router)
 app.include_router(websocket_routes.router)
 app.include_router(tool_routes.router)
+app.include_router(workflow_routes.router)
+app.include_router(admin_routes.router)
 
 
 @app.get("/")
@@ -94,6 +106,7 @@ async def root():
             "B": "background-server-monitoring",
             "C": "multi-user-login",
             "D": "mcp-tool-layer",
+            "M4": "workflow-orchestration-monitoring-dashboards",
         },
         "monitoring_enabled": settings.MONITORING_ENABLED,
         "mcp": "python -m app.mcp_server",

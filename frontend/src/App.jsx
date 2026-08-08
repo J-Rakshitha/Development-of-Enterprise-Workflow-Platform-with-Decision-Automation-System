@@ -10,6 +10,8 @@ import LoginPage from "./pages/LoginPage";
 import OverviewPage from "./pages/OverviewPage";
 import DevCollabPage from "./pages/DevCollabPage";
 import AIOpsPage from "./pages/AIOpsPage";
+import MonitoringPage from "./pages/MonitoringPage";
+import WorkflowsPage from "./pages/WorkflowsPage";
 
 function AppShell() {
   const { user, loading } = useAuth();
@@ -36,6 +38,8 @@ function AppShell() {
           <Route path="/" element={<OverviewPage />} />
           <Route path="/dev-collab" element={<DevCollabPage />} />
           <Route path="/aiops" element={<AIOpsPage />} />
+          <Route path="/monitoring" element={<MonitoringPage />} />
+          <Route path="/workflows" element={<WorkflowsPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>

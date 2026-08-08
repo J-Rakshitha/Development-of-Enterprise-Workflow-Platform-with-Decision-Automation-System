@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { Bell, Mail, Radio } from "lucide-react";
-import { getNotifications } from "../../services/apiClient";
+import { Bell, Mail, Radio, Check } from "lucide-react";
+import { getNotifications, acknowledgeNotification } from "../../services/apiClient";
 import { useLiveSocketContext } from "../../context/LiveSocketContext";
 
 const eventLabel = {
@@ -58,6 +58,13 @@ export default function NotificationsPanel() {
     if (lastEvent) load();
   }, [lastEvent, load]);
 
+  async function handleAck(id) {
+    try {
+      await acknowledgeNotification(id);
+      load();
+    } catch { /* non-fatal */ }
+  }
+
   const visible = entries.filter((n) => n.channel !== "websocket").slice(0, 12);
 
   return (
@@ -100,6 +107,14 @@ export default function NotificationsPanel() {
               <p className="text-[11px] text-ink-faint mt-1">
                 {new Date(n.created_at).toLocaleString()}
               </p>
+              {!n.acknowledged && (
+                <button
+                  onClick={() => handleAck(n.id)}
+                  className="mt-1.5 flex items-center gap-1 text-[10px] px-2 py-0.5 rounded bg-accent-success/10 text-accent-success hover:bg-accent-success/20"
+                >
+                  <Check size={10} /> Acknowledge
+                </button>
+              )}
             </div>
           );
         })}

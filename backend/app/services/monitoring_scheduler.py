@@ -199,6 +199,32 @@ async def start_monitoring() -> None:
     _monitor_task = asyncio.create_task(_monitor_loop())
 
 
+async def trigger_probe_now() -> list[dict]:
+    """Manual probe — used by admin API for on-demand health checks."""
+    targets = get_monitor_targets()
+    results = []
+    async with AsyncSessionLocal() as db:
+        for target in targets:
+            probe = await _probe_target(target)
+            snap = await _save_snapshot(db, probe)
+            await manager.broadcast("service_health_update", {
+                "service_name": probe["service_name"],
+                "url": probe["url"],
+                "status_code": probe["status_code"],
+                "response_time_ms": probe["response_time_ms"],
+                "healthy": probe["healthy"],
+                "checked_at": snap.checked_at.isoformat(),
+            })
+            results.append({
+                "service_name": probe["service_name"],
+                "healthy": probe["healthy"],
+                "status_code": probe["status_code"],
+                "response_time_ms": probe["response_time_ms"],
+                "checked_at": snap.checked_at,
+            })
+    return results
+
+
 async def stop_monitoring() -> None:
     global _monitor_task
     if _monitor_task and not _monitor_task.done():

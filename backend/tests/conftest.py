@@ -21,10 +21,11 @@ import pytest_asyncio
 from httpx import AsyncClient, ASGITransport
 
 from app.main import app
-from app.core.database import engine, Base
+from app.core.database import engine, Base, AsyncSessionLocal
 from app.services.seed_users import seed_demo_users
+from app.services.workflow_orchestrator_service import seed_workflow_definitions
 
-from app.models import dev_collab, incident, memory, tool_execution, monitoring, user, notification, enterprise, workflow  # noqa: F401
+from app.models import dev_collab, incident, memory, tool_execution, monitoring, user, notification, enterprise, workflow, workflow_engine  # noqa: F401
 
 
 @pytest_asyncio.fixture(autouse=True)
@@ -33,6 +34,8 @@ async def _reset_db():
         await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
     await seed_demo_users()
+    async with AsyncSessionLocal() as db:
+        await seed_workflow_definitions(db)
     yield
 
 

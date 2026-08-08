@@ -1,6 +1,6 @@
 import React from "react";
 import { NavLink, useNavigate } from "react-router-dom";
-import { Moon, Sun, GitBranch, ServerCog, LayoutGrid, Radio, User, LogOut } from "lucide-react";
+import { Moon, Sun, GitBranch, ServerCog, LayoutGrid, Radio, User, LogOut, Gauge, Workflow } from "lucide-react";
 import { useTheme } from "../../context/ThemeContext";
 import { useAuth } from "../../context/AuthContext";
 import LlmFailureToggle from "../common/LlmFailureToggle";
@@ -9,6 +9,8 @@ const tabs = [
   { to: "/", label: "Overview", icon: LayoutGrid, end: true },
   { to: "/dev-collab", label: "Dev-Collaboration", icon: GitBranch },
   { to: "/aiops", label: "Incident Response", icon: ServerCog },
+  { to: "/workflows", label: "Workflows", icon: Workflow },
+  { to: "/monitoring", label: "Monitoring", icon: Gauge },
 ];
 
 export default function Header({ connected }) {

@@ -225,6 +225,7 @@ async def get_notifications(
             "message": n.message,
             "related_entity_id": n.related_entity_id,
             "delivered": n.delivered,
+            "acknowledged": n.acknowledged,
             "created_at": n.created_at,
         }
         for n in entries
@@ -263,6 +264,52 @@ async def toggle_llm_failure(
 async def llm_failure_status():
     """Lets the frontend toggle switch reflect the current state on page load."""
     return {"simulated_llm_failure": get_simulated_failure()}
+
+
+@router.post("/notifications/{notification_id}/acknowledge")
+async def acknowledge_notification(
+    notification_id: int,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    from app.models.notification import TeamNotification
+
+    notif = await db.get(TeamNotification, notification_id)
+    if not notif:
+        raise HTTPException(status_code=404, detail="Notification not found")
+    notif.acknowledged = True
+    db.add(notif)
+    await db.commit()
+    return {"success": True, "id": notification_id, "acknowledged": True}
+
+
+@router.get("/agent-metrics")
+async def get_agent_metrics(
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Agent performance dashboard — run counts and LLM usage from decision logs."""
+    result = await db.execute(select(AgentDecisionLog))
+    logs = result.scalars().all()
+    by_agent: dict[str, dict] = {}
+    for log in logs:
+        key = log.agent_name
+        if key not in by_agent:
+            by_agent[key] = {"agent_name": key, "module": log.module, "run_count": 0, "llm_count": 0, "rule_count": 0}
+        by_agent[key]["run_count"] += 1
+        if log.used_llm:
+            by_agent[key]["llm_count"] += 1
+        else:
+            by_agent[key]["rule_count"] += 1
+    agents = sorted(by_agent.values(), key=lambda x: x["run_count"], reverse=True)
+    total = len(logs)
+    llm_total = sum(a["llm_count"] for a in agents)
+    return {
+        "total_decisions": total,
+        "llm_decisions": llm_total,
+        "rule_decisions": total - llm_total,
+        "agents": agents,
+    }
 
 
 @router.get("/decision-log")
