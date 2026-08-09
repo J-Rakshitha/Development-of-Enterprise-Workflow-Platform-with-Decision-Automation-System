@@ -11,6 +11,8 @@ import os
 os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///./test_coordination_engine.db"
 os.environ["LLM_ENABLED"] = "False"
 os.environ["MONITORING_ENABLED"] = "False"
+os.environ["RATE_LIMIT_ENABLED"] = "False"
+os.environ["JOB_QUEUE_ENABLED"] = "False"
 os.environ["SLACK_WEBHOOK_URL"] = ""
 os.environ["DISCORD_WEBHOOK_URL"] = ""
 os.environ["TEAMS_WEBHOOK_URL"] = ""

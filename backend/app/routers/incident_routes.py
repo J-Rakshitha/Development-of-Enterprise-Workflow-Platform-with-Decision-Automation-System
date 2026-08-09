@@ -3,10 +3,11 @@ AIOps Incident Response Module API routes.
 Prefix: /api/incidents
 """
 import json
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
+from app.core.config import simulate_endpoints_enabled
 from app.core.database import get_db
 from app.core.deps import get_current_user
 from app.models.user import User
@@ -42,7 +43,9 @@ async def simulate_incident(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """Demo one-click scenario — still available alongside real background monitoring."""
+    """Demo one-click scenario — disabled in production (ENV=production)."""
+    if not simulate_endpoints_enabled():
+        raise HTTPException(status_code=403, detail="Simulate endpoints are disabled in production.")
     metrics = random_metrics_snapshot(force_anomaly=True)
     if user:
         metrics["triggered_by"] = user.full_name

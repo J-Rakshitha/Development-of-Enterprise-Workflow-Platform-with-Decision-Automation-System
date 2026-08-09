@@ -13,6 +13,7 @@ from sqlalchemy import select
 
 from app.core.config import settings
 from app.core.database import AsyncSessionLocal
+from app.services.monitored_services_service import resolve_monitor_targets
 from app.models.monitoring import ServiceHealthSnapshot
 from app.agents.aiops.server_monitor_agent import ServerMonitorAgent
 from app.agents.aiops.monitoring_agent import MonitoringAgent
@@ -31,19 +32,10 @@ FAILURES_BEFORE_INCIDENT = 2
 
 
 def get_monitor_targets() -> list[dict]:
-    """Build target list from config — own backend + external service."""
-    return [
-        {
-            "name": settings.MONITOR_BACKEND_NAME,
-            "url": settings.MONITOR_BACKEND_URL,
-            "internal": True,
-        },
-        {
-            "name": settings.MONITOR_EXTERNAL_NAME,
-            "url": settings.MONITOR_EXTERNAL_URL,
-            "internal": False,
-        },
-    ]
+    """Sync env fallback — prefer resolve_monitor_targets(db) in async code paths."""
+    from app.services.monitored_services_service import env_default_targets
+
+    return env_default_targets()
 
 
 def _is_own_backend(url: str) -> bool:
@@ -112,8 +104,8 @@ async def _save_snapshot(db, probe: dict) -> ServiceHealthSnapshot:
 
 
 async def _run_probe_cycle() -> None:
-    targets = get_monitor_targets()
     async with AsyncSessionLocal() as db:
+        targets = await resolve_monitor_targets(db)
         for target in targets:
             probe = await _probe_target(target)
             snap = await _save_snapshot(db, probe)
@@ -201,9 +193,9 @@ async def start_monitoring() -> None:
 
 async def trigger_probe_now() -> list[dict]:
     """Manual probe — used by admin API for on-demand health checks."""
-    targets = get_monitor_targets()
     results = []
     async with AsyncSessionLocal() as db:
+        targets = await resolve_monitor_targets(db)
         for target in targets:
             probe = await _probe_target(target)
             snap = await _save_snapshot(db, probe)

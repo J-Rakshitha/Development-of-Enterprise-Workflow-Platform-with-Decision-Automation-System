@@ -15,6 +15,7 @@ import {
   repositoryDiscovery,
 } from "../services/apiClient";
 import { useLiveSocketContext } from "../context/LiveSocketContext";
+import { useAppConfig } from "../context/AppConfigContext";
 import RepoSubmitPanel from "../components/common/RepoSubmitPanel";
 
 const EVENTS_THAT_REFRESH = ["edit_session_started", "edit_session_ended", "conflict_detected", "conflict_resolved", "conflict_suggestion_ready", "conflict_updated", "repo_scanned"];
@@ -40,6 +41,7 @@ export default function DevCollabPage() {
   const [discovering, setDiscovering] = useState(false);
   const [discoveryResult, setDiscoveryResult] = useState(null);
   const { lastEvent } = useLiveSocketContext();
+  const { simulateEnabled } = useAppConfig();
 
   const loadData = useCallback(() => {
     Promise.all([getActiveSessions(), listConflicts(), listCommits()])
@@ -264,14 +266,16 @@ export default function DevCollabPage() {
               >
                 <RefreshCw size={14} />
               </button>
-              <button
-                onClick={handleSimulate}
-                disabled={simulating}
-                className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-accent-devcollab/15 text-accent-devcollab border border-accent-devcollab/30 hover:bg-accent-devcollab/25 transition-colors disabled:opacity-50"
-              >
-                {simulating ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
-                Simulate Conflict
-              </button>
+              {simulateEnabled && (
+                <button
+                  onClick={handleSimulate}
+                  disabled={simulating}
+                  className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-accent-devcollab/15 text-accent-devcollab border border-accent-devcollab/30 hover:bg-accent-devcollab/25 transition-colors disabled:opacity-50"
+                >
+                  {simulating ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
+                  Simulate Conflict
+                </button>
+              )}
             </div>
           </div>
 
@@ -283,8 +287,13 @@ export default function DevCollabPage() {
 
           {!error && sessions.length === 0 && (
             <p className="text-xs text-ink-muted">
-              No active edit sessions. Click <span className="text-accent-devcollab">Simulate Conflict</span> for a demo
-              scenario, or <span className="text-ink-primary">Sync with GitHub</span> above for real repo data.
+              No active edit sessions.
+              {simulateEnabled ? (
+                <> Click <span className="text-accent-devcollab">Simulate Conflict</span> for a demo scenario, or </>
+              ) : (
+                <> Use </>
+              )}
+              <span className="text-ink-primary">Sync with GitHub</span> above for real repo data.
             </p>
           )}
 

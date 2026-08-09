@@ -11,6 +11,7 @@ import {
   listConflicts,
 } from "../services/apiClient";
 import { useLiveSocketContext } from "../context/LiveSocketContext";
+import { useAppConfig } from "../context/AppConfigContext";
 
 const statusColor = {
   running: "text-accent-devcollab",
@@ -28,6 +29,7 @@ export default function WorkflowsPage() {
   const [busy, setBusy] = useState(null);
   const [error, setError] = useState("");
   const { lastEvent } = useLiveSocketContext();
+  const { simulateEnabled } = useAppConfig();
 
   const load = useCallback(async () => {
     try {
@@ -65,11 +67,17 @@ export default function WorkflowsPage() {
       let context = {};
       if (templateKey === "dev-conflict-resolution" || templateKey === "full-sdlc-bridge") {
         let conflicts = (await listConflicts()).data;
-        if (!conflicts.length) {
+        if (!conflicts.length && simulateEnabled) {
           await simulateDemoConflict();
           conflicts = (await listConflicts()).data;
         }
-        if (!conflicts.length) throw new Error("No conflicts available.");
+        if (!conflicts.length) {
+          throw new Error(
+            simulateEnabled
+              ? "No conflicts available."
+              : "No conflicts available. Sync with GitHub or resolve a real conflict first."
+          );
+        }
         context = { conflict_id: conflicts[0].id };
       }
       const res = await startWorkflow(templateKey, context);

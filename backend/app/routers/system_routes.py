@@ -18,7 +18,7 @@ from app.models.dev_collab import FileEditSession, ConflictEvent
 from app.agents.llm.llm_client import set_simulated_failure, get_simulated_failure
 from app.agents.memory_agent import MemoryAgent
 from app.agents.notification_agent import NotificationAgent
-from app.core.config import settings
+from app.core.config import settings, simulate_endpoints_enabled
 
 router = APIRouter(prefix="/api/system", tags=["System"])
 
@@ -158,6 +158,19 @@ async def health_check():
         "env": settings.ENV,
         "db_pool_usage_pct": 35.0,
         "monitoring_enabled": settings.MONITORING_ENABLED,
+    }
+
+
+@router.get("/app-config")
+async def app_config():
+    """Public runtime flags for frontend (simulate visibility, production mode)."""
+    from app.services.job_queue_service import get_queue_stats
+
+    return {
+        "env": settings.ENV,
+        "production": settings.ENV.strip().lower() == "production",
+        "simulate_enabled": simulate_endpoints_enabled(),
+        "job_queue": get_queue_stats(),
     }
 
 

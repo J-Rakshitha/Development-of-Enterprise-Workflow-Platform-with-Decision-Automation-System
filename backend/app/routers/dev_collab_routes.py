@@ -30,7 +30,7 @@ from app.services.synthetic_data_generator import random_edit_event
 from app.services.github_sync_service import enrich_and_notify_conflict, run_github_sync
 from app.services.github_webhook_service import GitHubWebhookService
 from app.services import hitl_service, repo_service
-from app.core.config import settings
+from app.core.config import settings, simulate_endpoints_enabled
 from app.routers.websocket_routes import manager
 
 router = APIRouter(prefix="/api/dev-collab", tags=["Dev Collaboration"])
@@ -418,6 +418,8 @@ async def simulate_demo_conflict(
     detection, and returns the result. No real IDE/git integration needed —
     perfect for a live presentation where you can't rely on external tools.
     """
+    if not simulate_endpoints_enabled():
+        raise HTTPException(status_code=403, detail="Simulate endpoints are disabled in production.")
     (dev_a_name, dev_a_color), (dev_b_name, dev_b_color) = random.sample(DEMO_DEV_NAMES, 2)
     edit_event = random_edit_event()
 

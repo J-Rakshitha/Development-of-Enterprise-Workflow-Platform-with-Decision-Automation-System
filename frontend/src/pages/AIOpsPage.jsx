@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { ServerCog, RefreshCw, Sparkles, Loader2, GitCommit, ExternalLink } from "lucide-react";
 import { listIncidents, simulateIncident } from "../services/apiClient";
 import { useLiveSocketContext } from "../context/LiveSocketContext";
+import { useAppConfig } from "../context/AppConfigContext";
 import ToolIntegrationPanel from "../components/common/ToolIntegrationPanel";
 import SlaCountdown from "../components/common/SlaCountdown";
 
@@ -16,6 +17,7 @@ export default function AIOpsPage() {
   const [error, setError] = useState(false);
   const [simulating, setSimulating] = useState(false);
   const { lastEvent } = useLiveSocketContext();
+  const { simulateEnabled } = useAppConfig();
 
   const loadIncidents = useCallback(() => {
     listIncidents()
@@ -62,14 +64,16 @@ export default function AIOpsPage() {
               >
                 <RefreshCw size={14} />
               </button>
-              <button
-                onClick={handleSimulate}
-                disabled={simulating}
-                className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-accent-aiops/15 text-accent-aiops border border-accent-aiops/30 hover:bg-accent-aiops/25 transition-colors disabled:opacity-50"
-              >
-                {simulating ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
-                Simulate Incident
-              </button>
+              {simulateEnabled && (
+                <button
+                  onClick={handleSimulate}
+                  disabled={simulating}
+                  className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-accent-aiops/15 text-accent-aiops border border-accent-aiops/30 hover:bg-accent-aiops/25 transition-colors disabled:opacity-50"
+                >
+                  {simulating ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
+                  Simulate Incident
+                </button>
+              )}
             </div>
           </div>
 
@@ -81,8 +85,10 @@ export default function AIOpsPage() {
 
           {!error && incidents.length === 0 && (
             <p className="text-xs text-ink-muted">
-              No incidents recorded yet. Click <span className="text-accent-aiops">Simulate Incident</span> to
-              trigger a realistic anomaly through the full agent pipeline.
+              No incidents recorded yet.
+              {simulateEnabled
+                ? <> Click <span className="text-accent-aiops">Simulate Incident</span> to trigger a realistic anomaly.</>
+                : <> Background probes or admin <span className="text-accent-aiops">Trigger Probe</span> will populate incidents.</>}
             </p>
           )}
 

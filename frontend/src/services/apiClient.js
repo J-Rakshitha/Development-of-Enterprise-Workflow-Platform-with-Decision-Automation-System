@@ -67,7 +67,7 @@ export const simulateIncident = () =>
 export const listIncidents = () => apiClient.get("/api/incidents/");
 
 // ---------- System ----------
-export const healthCheck = () => apiClient.get("/api/system/health");
+export const getAppConfig = () => apiClient.get("/api/system/app-config");
 export const getStats = () => apiClient.get("/api/system/stats");
 export const getKnowledgeBase = () => apiClient.get("/api/system/knowledge-base");
 export const searchKnowledgeBase = (query) =>
@@ -115,5 +115,14 @@ export const acknowledgeNotification = (id) =>
 export const getAdminSystemHealth = () => apiClient.get("/api/admin/system-health");
 export const triggerProbe = () => apiClient.post("/api/admin/monitoring/trigger-probe", null, { timeout: 30000 });
 export const getAdminMonitoringConfig = () => apiClient.get("/api/admin/monitoring/config");
+export const listMonitoredServices = () => apiClient.get("/api/admin/monitored-services");
+export const createMonitoredService = (payload) =>
+  apiClient.post("/api/admin/monitored-services", payload);
+export const updateMonitoredService = (id, payload) =>
+  apiClient.put(`/api/admin/monitored-services/${id}`, payload);
+export const deleteMonitoredService = (id) =>
+  apiClient.delete(`/api/admin/monitored-services/${id}`);
+
+export const healthCheck = () => apiClient.get("/api/system/health");
 
 export default apiClient;

@@ -2,16 +2,21 @@ import React, { useCallback, useEffect, useState } from "react";
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar, CartesianGrid,
 } from "recharts";
-import { Activity, RefreshCw, Server, Gauge, Loader2, CheckCircle, XCircle } from "lucide-react";
+import { Activity, RefreshCw, Server, Gauge, Loader2, CheckCircle, XCircle, Plus, Trash2, Pencil } from "lucide-react";
 import {
   getMonitoringSummary,
   getMonitoringHistory,
   getAgentMetrics,
   getWorkflowStats,
   triggerProbe,
+  listMonitoredServices,
+  createMonitoredService,
+  updateMonitoredService,
+  deleteMonitoredService,
 } from "../services/apiClient";
 import { useLiveSocketContext } from "../context/LiveSocketContext";
 import { useAuth } from "../context/AuthContext";
+import { useAppConfig } from "../context/AppConfigContext";
 
 export default function MonitoringPage() {
   const [summary, setSummary] = useState(null);
@@ -21,21 +26,30 @@ export default function MonitoringPage() {
   const [selectedService, setSelectedService] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
+  const [monitoredServices, setMonitoredServices] = useState([]);
+  const [form, setForm] = useState({ name: "", url: "", enabled: true, is_internal: false });
+  const [editingId, setEditingId] = useState(null);
+  const [svcBusy, setSvcBusy] = useState(false);
   const { lastEvent } = useLiveSocketContext();
   const { user } = useAuth();
+  const { jobQueue } = useAppConfig();
   const isAdmin = user?.role === "admin";
 
   const loadAll = useCallback(async () => {
     setLoading(true);
     try {
-      const [sumRes, metricsRes, wfRes] = await Promise.all([
+      const requests = [
         getMonitoringSummary(),
         getAgentMetrics(),
         getWorkflowStats(),
-      ]);
+      ];
+      if (isAdmin) requests.push(listMonitoredServices());
+      const results = await Promise.all(requests);
+      const [sumRes, metricsRes, wfRes] = results;
       setSummary(sumRes.data);
       setAgentMetrics(metricsRes.data);
       setWfStats(wfRes.data);
+      if (isAdmin && results[3]) setMonitoredServices(results[3].data);
       setError(false);
       const services = sumRes.data?.services || [];
       const svc = selectedService || services[0]?.service_name;
@@ -59,7 +73,7 @@ export default function MonitoringPage() {
     } finally {
       setLoading(false);
     }
-  }, [selectedService]);
+  }, [selectedService, isAdmin]);
 
   useEffect(() => { loadAll(); }, [loadAll]);
   useEffect(() => {
@@ -92,6 +106,47 @@ export default function MonitoringPage() {
           }))
       );
     } catch { /* non-fatal */ }
+  }
+
+  async function handleSaveService(e) {
+    e.preventDefault();
+    if (!isAdmin) return;
+    setSvcBusy(true);
+    try {
+      if (editingId) {
+        await updateMonitoredService(editingId, form);
+      } else {
+        await createMonitoredService(form);
+      }
+      setForm({ name: "", url: "", enabled: true, is_internal: false });
+      setEditingId(null);
+      await loadAll();
+    } catch { /* non-fatal */ }
+    finally { setSvcBusy(false); }
+  }
+
+  function startEditService(svc) {
+    setEditingId(svc.id);
+    setForm({
+      name: svc.name,
+      url: svc.url,
+      enabled: svc.enabled,
+      is_internal: svc.is_internal,
+    });
+  }
+
+  async function handleDeleteService(id) {
+    if (!isAdmin) return;
+    setSvcBusy(true);
+    try {
+      await deleteMonitoredService(id);
+      if (editingId === id) {
+        setEditingId(null);
+        setForm({ name: "", url: "", enabled: true, is_internal: false });
+      }
+      await loadAll();
+    } catch { /* non-fatal */ }
+    finally { setSvcBusy(false); }
   }
 
   const services = summary?.services || [];
@@ -226,6 +281,109 @@ export default function MonitoringPage() {
           </ResponsiveContainer>
         )}
       </div>
+
+      {isAdmin && (
+        <div className="bg-base-surface border border-base-border rounded-xl p-4">
+          <h3 className="text-sm font-semibold text-ink-primary mb-1 flex items-center gap-2">
+            <Plus size={15} />
+            Admin — Monitored Services
+          </h3>
+          <p className="text-xs text-ink-muted mb-3">
+            Add probe targets without editing .env or restarting the server.
+            {jobQueue?.enabled && (
+              <> Job queue: {jobQueue.backend} ({jobQueue.worker_running ? "running" : "stopped"}).</>
+            )}
+          </p>
+
+          <form onSubmit={handleSaveService} className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
+            <input
+              required
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+              placeholder="Service name (e.g. payment-service)"
+              className="text-xs px-3 py-2 rounded-lg border border-base-border bg-base-bg"
+            />
+            <input
+              required
+              value={form.url}
+              onChange={(e) => setForm({ ...form, url: e.target.value })}
+              placeholder="https://api.example.com/health"
+              className="text-xs px-3 py-2 rounded-lg border border-base-border bg-base-bg"
+            />
+            <label className="flex items-center gap-2 text-xs text-ink-muted">
+              <input
+                type="checkbox"
+                checked={form.enabled}
+                onChange={(e) => setForm({ ...form, enabled: e.target.checked })}
+              />
+              Enabled
+            </label>
+            <label className="flex items-center gap-2 text-xs text-ink-muted">
+              <input
+                type="checkbox"
+                checked={form.is_internal}
+                onChange={(e) => setForm({ ...form, is_internal: e.target.checked })}
+              />
+              Internal probe (localhost backend)
+            </label>
+            <div className="md:col-span-2 flex gap-2">
+              <button
+                type="submit"
+                disabled={svcBusy}
+                className="text-xs px-3 py-1.5 rounded-lg bg-accent-aiops/15 text-accent-aiops border border-accent-aiops/30"
+              >
+                {editingId ? "Update Service" : "Add Service"}
+              </button>
+              {editingId && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingId(null);
+                    setForm({ name: "", url: "", enabled: true, is_internal: false });
+                  }}
+                  className="text-xs px-3 py-1.5 rounded-lg border border-base-border text-ink-muted"
+                >
+                  Cancel
+                </button>
+              )}
+            </div>
+          </form>
+
+          <div className="space-y-2">
+            {monitoredServices.map((svc) => (
+              <div
+                key={svc.id}
+                className="flex items-center justify-between border border-base-border rounded-lg px-3 py-2 text-xs"
+              >
+                <div>
+                  <p className="font-medium text-ink-primary">{svc.name}</p>
+                  <p className="text-ink-muted truncate max-w-md">{svc.url}</p>
+                  <p className="text-ink-faint mt-0.5">
+                    {svc.enabled ? "enabled" : "disabled"} · {svc.is_internal ? "internal" : "external"}
+                  </p>
+                </div>
+                <div className="flex gap-1">
+                  <button
+                    onClick={() => startEditService(svc)}
+                    className="p-1.5 rounded border border-base-border text-ink-muted hover:text-ink-primary"
+                    title="Edit"
+                  >
+                    <Pencil size={13} />
+                  </button>
+                  <button
+                    onClick={() => handleDeleteService(svc.id)}
+                    disabled={svcBusy}
+                    className="p-1.5 rounded border border-base-border text-red-400 hover:text-red-300"
+                    title="Delete"
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

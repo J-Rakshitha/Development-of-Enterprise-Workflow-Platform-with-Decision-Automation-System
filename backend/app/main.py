@@ -15,8 +15,11 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
 from app.core.database import init_db
+from app.middleware.rate_limit import RateLimitMiddleware
 from app.services.seed_users import seed_demo_users
 from app.services.monitoring_scheduler import start_monitoring, stop_monitoring
+from app.services.job_queue_service import start_job_worker, stop_job_worker
+from app.services.monitored_services_service import seed_default_monitored_services
 
 # Import models so SQLAlchemy's metadata knows about every table before create_all()
 from app.models import dev_collab  # noqa: F401
@@ -57,11 +60,14 @@ async def lifespan(app: FastAPI):
     from app.core.database import AsyncSessionLocal
     async with AsyncSessionLocal() as db:
         await seed_workflow_definitions(db)
+        await seed_default_monitored_services(db)
+    await start_job_worker()
     await start_monitoring()
     await start_sla_watchdog()
     yield
     await stop_sla_watchdog()
     await stop_monitoring()
+    await stop_job_worker()
     logger.info("Shutting down.")
 
 
@@ -73,6 +79,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+app.add_middleware(RateLimitMiddleware)
 app.add_middleware(
     CORSMiddleware,
     # Accept any localhost/127.0.0.1 port in development — Vite may auto-pick

@@ -7,6 +7,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.coordinator_agent import CoordinatorAgent
+from app.core.config import settings
 from app.agents.dev_collab.resolution_suggestion_agent import ResolutionSuggestionAgent
 from app.agents.dev_collab.resolution_synthesizer_agent import ResolutionSynthesizerAgent
 from app.agents.dev_collab.semantic_analysis_agent import SemanticAnalysisAgent
@@ -17,6 +18,7 @@ from app.models.user import User
 from app.models.workflow_engine import WorkflowDefinition, WorkflowJob, WorkflowRun, WorkflowStepLog
 from app.routers.websocket_routes import manager
 from app.services import hitl_service
+from app.services import job_queue_service
 from app.services.incident_pipeline import run_incident_pipeline
 from app.services.workflow_definitions import WORKFLOW_TEMPLATES, template_steps, template_to_json
 
@@ -366,6 +368,11 @@ async def _advance_run(db: AsyncSession, run: WorkflowRun, user: User) -> Workfl
     return run
 
 
+async def run_workflow_advance(db: AsyncSession, run: WorkflowRun, user: User) -> WorkflowRun:
+    """Public entry for job queue worker."""
+    return await _advance_run(db, run, user)
+
+
 async def start_workflow(
     db: AsyncSession,
     user: User,
@@ -382,10 +389,11 @@ async def start_workflow(
     conflict_id = ctx.get("conflict_id")
     incident_id = ctx.get("incident_id")
 
+    initial_status = "queued" if settings.JOB_QUEUE_ENABLED else "running"
     run = WorkflowRun(
         definition_id=definition.id,
         template_key=template_key,
-        status="running",
+        status=initial_status,
         current_step_index=0,
         started_by_user_id=user.id,
         context_json=json.dumps(ctx),
@@ -400,8 +408,8 @@ async def start_workflow(
         run_id=run.id,
         step_index=0,
         job_type="execute_step",
-        status="running",
-        started_at=datetime.utcnow(),
+        status="queued" if settings.JOB_QUEUE_ENABLED else "running",
+        started_at=None if settings.JOB_QUEUE_ENABLED else datetime.utcnow(),
     ))
     await db.commit()
 
@@ -409,17 +417,22 @@ async def start_workflow(
         "run_id": run.id,
         "template_key": template_key,
         "started_by": user.full_name,
+        "queued": settings.JOB_QUEUE_ENABLED,
     })
+
+    if settings.JOB_QUEUE_ENABLED:
+        await job_queue_service.enqueue("workflow_start", {"run_id": run.id, "user_id": user.id})
+        return _serialize_run(run, definition)
 
     run = await _advance_run(db, run, user)
     return _serialize_run(run, definition)
 
 
-async def resume_workflow(db: AsyncSession, user: User, run_id: int) -> dict:
+async def resume_workflow_internal(db: AsyncSession, user: User, run_id: int) -> WorkflowRun:
     run = await db.get(WorkflowRun, run_id)
     if not run:
         raise ValueError("Workflow run not found")
-    if run.status != "waiting_hitl":
+    if run.status not in ("waiting_hitl", "queued"):
         raise ValueError("Workflow is not waiting for human approval")
 
     conflict = await db.get(ConflictEvent, run.conflict_id) if run.conflict_id else None
@@ -433,8 +446,25 @@ async def resume_workflow(db: AsyncSession, user: User, run_id: int) -> dict:
     db.add(run)
     await db.commit()
     await db.refresh(run)
+    return await _advance_run(db, run, user)
 
-    run = await _advance_run(db, run, user)
+
+async def resume_workflow(db: AsyncSession, user: User, run_id: int) -> dict:
+    if settings.JOB_QUEUE_ENABLED:
+        run = await db.get(WorkflowRun, run_id)
+        if not run:
+            raise ValueError("Workflow run not found")
+        if run.status != "waiting_hitl":
+            raise ValueError("Workflow is not waiting for human approval")
+        run.status = "queued"
+        run.updated_at = datetime.utcnow()
+        db.add(run)
+        await db.commit()
+        await job_queue_service.enqueue("workflow_resume", {"run_id": run_id, "user_id": user.id})
+        definition = await db.get(WorkflowDefinition, run.definition_id)
+        return _serialize_run(run, definition)
+
+    run = await resume_workflow_internal(db, user, run_id)
     definition = await db.get(WorkflowDefinition, run.definition_id)
     return _serialize_run(run, definition)
 

@@ -180,6 +180,28 @@ Production-ready workflow orchestration and ops monitoring dashboards.
 
 **Deployment:** `Dockerfile` + `docker-compose.yml` for production containerization
 
+#### Pre-Deploy Production Readiness (M4 extension) ✅
+
+Features implemented locally and tested — **deploy pending** (Render/Vercel).
+
+| Feature | What it does |
+|---------|--------------|
+| **Production simulate hide** | `ENV=production` + `VITE_ENV=production` → Simulate Conflict/Incident buttons hidden; backend returns 403 |
+| **Admin monitored services** | DB table `monitored_services` + CRUD APIs + Monitoring page form (no `.env` restart to add targets) |
+| **Rate limiting** | Middleware on login/register + sensitive public routes (429 on abuse) |
+| **Background job queue** | Workflows run async — API returns immediately; Redis optional (memory fallback locally) |
+| **GitHub Actions CI** | `.github/workflows/ci.yml` — pytest + frontend build on push |
+
+**New APIs:**
+- `GET /api/system/app-config` — public runtime flags (`simulate_enabled`, `job_queue`)
+- `GET/POST/PUT/DELETE /api/admin/monitored-services` — admin CRUD for probe targets
+
+**Migration:** `007_monitored_services.py`
+
+**Local verify:** `python live_smoke_test.py` → **9/9 PASS** | `python -m pytest tests -q` → **74 passed**
+
+**Redis (optional):** Comment out `REDIS_URL` in local `.env` — memory queue used. At deploy, add Render managed Redis URL.
+
 ### Milestone 3 — Agent Coordination & Memory Systems (Weeks 5–6) ✅
 
 Milestone 3 delivers a **multi-agent coordination engine** where specialized agents
@@ -311,7 +333,12 @@ Repeated patterns reinforce entries (`success_count` increments).
 | Hybrid LLM (Gemini) | ✅ Real when API key set | Rule-based fallback always available |
 | Slack / Discord / Gmail / Teams alerts | ✅ Real when `.env` webhooks/SMTP set | |
 | Team Notifications panel | ✅ Real DB records, live WebSocket refresh | |
-| Alembic DB migrations | ✅ 001 SLA + 002 enterprise + **003 HITL/workflow** | |
+| Alembic DB migrations | ✅ 001–007 (SLA, enterprise, HITL, workflow, monitored_services) | |
+| Production simulate guard | ✅ Hidden in production — dev-only demo buttons | |
+| Admin monitored services UI | ✅ Add/edit probe targets without `.env` restart | |
+| Rate limiting | ✅ Auth + public API abuse protection | |
+| Background job queue | ✅ Async workflows — Redis optional at deploy | |
+| CI/CD | ✅ GitHub Actions workflow | |
 | Enterprise E1–E5 pipeline | ✅ Real AST + semantic + quality + RAG | |
 | **Simulate Conflict** button | | ⚠️ Demo trigger (random file/function) |
 | **Simulate Incident** button | | ⚠️ Demo trigger (random metrics) |
@@ -377,7 +404,9 @@ Test endpoints: `POST /api/system/test-email`, `POST /api/system/test-discord-we
 | Backend | Python 3.11+, FastAPI, SQLAlchemy (async), SQLite (dev) |
 | Real-time | Native FastAPI WebSockets |
 | Auth | JWT (python-jose) + bcrypt |
-| Monitoring | Background asyncio scheduler + httpx probes |
+| Monitoring | Background asyncio scheduler + httpx probes + admin-managed targets |
+| Job Queue | asyncio worker + optional Redis (`REDIS_URL`) with in-memory fallback |
+| CI/CD | GitHub Actions — pytest + frontend build |
 | MCP | `mcp` Python SDK (FastMCP) |
 | LLM | Google Gemini API via **google-genai** SDK (AIza + AQ keys) + rule-based fallback |
 | Frontend | React 18 + Vite, Tailwind CSS, React Router, lucide-react |
@@ -411,14 +440,15 @@ Development-of-Enterprise-Workflow-Platform-with-Decision-Automation-System/
 │   │   │   ├── dev_collab/                 # Discovery, Semantic, Quality, Synthesizer, Conflict agents
 │   │   │   ├── aiops/                      # Monitoring, Root Cause, Severity, Escalation agents
 │   │   │   └── tools/                      # Tool Registry + Selector + Executor (8 tools)
-│   │   ├── routers/                        # auth, chat, monitoring, incidents, dev-collab, system
-│   │   └── services/                       # hitl_service, repo_service, chat_service, github_sync
-│   ├── alembic/versions/                   # 001 SLA + 002 enterprise + 003 HITL/workflow
+│   │   ├── middleware/                     # rate_limit middleware
+│   │   ├── routers/                        # auth, chat, monitoring, incidents, dev-collab, system, admin, workflows
+│   │   └── services/                       # hitl, repo, chat, github_sync, job_queue, monitored_services
+│   ├── alembic/versions/                   # 001–007 (SLA, enterprise, HITL, workflow, monitored_services)
 │   ├── tests/
-│   │   ├── test_enterprise_workflow.py     # HITL, chat, auth — 3 tests
-│   │   ├── test_enterprise_phase5.py       # E1–E5 enterprise — 6 tests
-│   │   ├── test_milestone3.py              # M3 coordination, memory, notifications
-│   │   └── ...                             # 60 tests total
+│   │   ├── test_milestone4.py              # Workflow orchestration + monitoring
+│   │   ├── test_pre_deploy.py              # Production toggle, rate limit, monitored services
+│   │   └── ...                             # 74 tests total
+│   ├── live_smoke_test.py                  # Live backend smoke — 9 checks
 │   ├── run.ps1                             # Windows one-click backend start
 │   ├── requirements.txt
 ├── frontend/
@@ -427,16 +457,16 @@ Development-of-Enterprise-Workflow-Platform-with-Decision-Automation-System/
 │   │   │   ├── LoginPage.jsx               # Branded mandatory sign-in
 │   │   │   ├── OverviewPage.jsx            # Stats + Chat History + Notifications
 │   │   │   ├── DevCollabPage.jsx           # HITL conflicts + Repo submit + GitHub sync
-│   │   │   └── AIOpsPage.jsx               # Incidents + Tool Integration panel
-│   │   ├── components/common/
-│   │   │   ├── ChatHistoryPanel.jsx        # ChatGPT-style long-term chat
-│   │   │   ├── RepoSubmitPanel.jsx         # Per-user GitHub repo connect
-│   │   │   ├── NotificationsPanel.jsx      # Team alerts (WebSocket + email log)
-│   │   │   ├── ToolIntegrationPanel.jsx    # Tool registry + accuracy stats
-│   │   │   └── LlmFailureToggle.jsx        # Hybrid AI fallback demo toggle
-│   │   └── context/                        # AuthContext, LiveSocketContext, ThemeContext
+│   │   │   ├── AIOpsPage.jsx               # Incidents + Tool Integration panel
+│   │   │   ├── MonitoringPage.jsx          # Ops dashboard + admin monitored services
+│   │   │   └── WorkflowsPage.jsx           # Workflow orchestration + HITL resume
+│   │   ├── components/common/              # ChatHistory, RepoSubmit, Notifications, ToolIntegration
+│   │   ├── context/
+│   │   │   ├── AppConfigContext.jsx        # Production/simulate flags from backend
+│   │   │   └── ...                         # AuthContext, LiveSocketContext, ThemeContext
 │   ├── run.ps1                             # Windows one-click frontend start
 │   └── package.json
+├── .github/workflows/ci.yml                # GitHub Actions — pytest + frontend build
 └── README.md
 ```
 
@@ -497,6 +527,13 @@ NOTIFICATION_SMTP_PASSWORD=your-gmail-app-password
 SLACK_WEBHOOK_URL=
 DISCORD_WEBHOOK_URL=
 TEAMS_WEBHOOK_URL=
+
+# Production / pre-deploy (optional locally)
+ENV=development
+# VITE_ENV=production          # set on Vercel at deploy
+# REDIS_URL=redis://localhost:6379/0   # optional — comment out for memory job queue
+JOB_QUEUE_ENABLED=True
+RATE_LIMIT_ENABLED=True
 ```
 
 > **Never commit `.env`** — it is gitignored. Copy settings from README env block into `backend/.env` locally.
@@ -545,9 +582,9 @@ python -m pytest -v
 
 # Or from backend directory
 cd backend
-python -m pytest -v                  # Full suite — 60 tests
-python -m pytest tests/test_enterprise_phase5.py -v   # Enterprise E1–E5 — 6 tests
-python -m pytest tests/test_milestone3.py -v   # Milestone 3 only — 6 tests
+python -m pytest -v                  # Full suite — 74 tests
+python -m pytest tests/test_pre_deploy.py -v   # Pre-deploy features — 5 tests
+python -m pytest tests/test_milestone4.py -v   # Milestone 4 — 8 tests
 python -m pytest tests/test_enterprise_integrations.py -v   # SLA, webhook, Slack, Discord, Gmail — 14 tests
 python -m pytest tests/test_llm_hybrid.py -v   # Hybrid LLM (google-genai SDK) — 3 tests
 ```
@@ -587,7 +624,8 @@ The backend recreates all tables automatically on startup.
 | Backend health | http://localhost:8000/api/system/health | `{"status":"ok"}` |
 | API docs | http://localhost:8000/docs | Swagger UI loads |
 | Dashboard | http://localhost:5173 | Branded login → Overview after sign in |
-| Full test suite | `python -m pytest -v` (project root or backend) | **60 passed** |
+| Full test suite | `python -m pytest -v` (project root or backend) | **74 passed** |
+| Live smoke test | `python live_smoke_test.py` (backend running) | **9/9 PASS** |
 
 ---
 
@@ -597,6 +635,7 @@ The backend recreates all tables automatically on startup.
 | Method | Path | Purpose |
 |--------|------|---------|
 | GET | `/api/system/health` | Health check (also monitored by Phase B) |
+| GET | `/api/system/app-config` | Runtime flags — production mode, simulate_enabled, job_queue |
 | GET | `/api/system/stats` | Dashboard stat cards |
 | GET | `/api/system/decision-log` | Explainable-AI trail |
 | GET | `/api/system/knowledge-base` | Long-term agent memory |
@@ -614,6 +653,28 @@ The backend recreates all tables automatically on startup.
 |--------|------|---------|
 | GET | `/api/monitoring/status` | Latest health snapshot per service |
 | GET | `/api/monitoring/history/{service_name}` | Probe history |
+| GET | `/api/monitoring/summary` | All services + 24h uptime |
+| GET | `/api/monitoring/uptime/{service_name}` | Uptime % from probe history |
+
+### Admin / Ops (admin role)
+| Method | Path | Purpose |
+|--------|------|---------|
+| GET | `/api/admin/system-health` | Scheduler, job queue, DB status |
+| GET | `/api/admin/monitored-services` | List probe targets |
+| POST | `/api/admin/monitored-services` | Add monitored service |
+| PUT | `/api/admin/monitored-services/{id}` | Edit service |
+| DELETE | `/api/admin/monitored-services/{id}` | Remove service |
+| POST | `/api/admin/monitoring/trigger-probe` | Manual on-demand probe |
+
+### Workflows (Milestone 4)
+| Method | Path | Purpose |
+|--------|------|---------|
+| GET | `/api/workflows/definitions` | Workflow templates |
+| POST | `/api/workflows/start` | Start workflow (queued if job queue enabled) |
+| GET | `/api/workflows/runs` | List runs |
+| POST | `/api/workflows/runs/{id}/resume` | Resume after HITL approval |
+| GET | `/api/workflows/runs/{id}/timeline` | Step-by-step timeline |
+| GET | `/api/workflows/stats` | Run counts by status |
 
 ### Phase C — Auth
 | Method | Path | Purpose |
@@ -683,20 +744,15 @@ The backend recreates all tables automatically on startup.
 | Human-in-the-Loop workflow | Approve/Reject/Undo on conflicts — user has final authority |
 | Per-user GitHub repo | Repo submit + auto-scan per signed-in user |
 | ChatGPT-style chat history | Chat sessions with follow-up Q&A on Overview |
-| Testing | **60 pytest tests** — `python -m pytest -v` |
+| Testing | **74 pytest tests** + live smoke test — `python -m pytest -v` |
 
 ---
 
-## Push to GitHub (one command)
-
-From the project root (never commits `.env` — it is gitignored):
-
-```powershell
-git add -A; git commit -m "Enterprise workflow E6: HITL, mandatory auth, chat history, repo submit — 60 tests"; git push origin main
-```
+## Push to GitHub
 
 Repo: [J-Rakshitha/AI-Agent-Coordination-Decision-Engine](https://github.com/J-Rakshitha/AI-Agent-Coordination-Decision-Engine)
----
+
+> Never commit `backend/.env` — it is gitignored.
 
 ## Build Plan
 
@@ -711,11 +767,9 @@ Repo: [J-Rakshitha/AI-Agent-Coordination-Decision-Engine](https://github.com/J-R
 - [x] Enterprise polish — Alembic migrations, SLA countdown UI, GitHub webhook, Slack/Discord/Gmail alerts
 - [x] **Enterprise E1–E5** — Repository Discovery, Semantic Analysis, Synthesizer, Quality, RAG Search
 - [x] **Enterprise E6** — HITL, mandatory auth, branded login, chat history, per-user repo
-- [x] **69 automated tests** — full suite green from project root
-- [x] Branded LoginPage + Decision Trail removed from UI
-- [x] Milestone documents updated (Sprint 3: 27-Jul to 04-Aug-2026)
-- [x] GitHub push — [repo live](https://github.com/J-Rakshitha/AI-Agent-Coordination-Decision-Engine)
 - [x] **Milestone 4** — Workflow orchestration, monitoring dashboard, SLA watchdog, Docker
+- [x] **Pre-deploy (M4 extension)** — Production simulate hide, admin monitored services, rate limiting, job queue, CI
+- [x] **74 automated tests** + live smoke test (9/9)
 - [ ] Render/Vercel deployment
 - [ ] Final demo rehearsal
 

@@ -13,7 +13,7 @@ from app.core.database import get_db
 from app.core.deps import get_current_user
 from app.models.user import User
 from app.models.monitoring import ServiceHealthSnapshot
-from app.services.monitoring_scheduler import get_monitor_targets
+from app.services.monitored_services_service import resolve_monitor_targets
 
 router = APIRouter(prefix="/api/monitoring", tags=["Server Monitoring"])
 
@@ -24,7 +24,7 @@ async def monitoring_status(
     user: User = Depends(get_current_user),
 ):
     """Latest health snapshot per monitored service (real probe data, not hardcoded)."""
-    targets = get_monitor_targets()
+    targets = await resolve_monitor_targets(db)
     services = []
 
     for target in targets:
@@ -128,7 +128,7 @@ async def monitoring_summary(
     user: User = Depends(get_current_user),
 ):
     """All monitored services with latest status and 24h uptime."""
-    targets = get_monitor_targets()
+    targets = await resolve_monitor_targets(db)
     summary = []
     since = datetime.utcnow() - timedelta(hours=24)
     for target in targets:

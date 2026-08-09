@@ -72,6 +72,15 @@ class Settings(BaseSettings):
     DISCORD_WEBHOOK_URL: str = ""
     TEAMS_WEBHOOK_URL: str = ""
 
+    # Rate limiting (public API abuse protection)
+    RATE_LIMIT_ENABLED: bool = True
+    RATE_LIMIT_AUTH_PER_MINUTE: int = 20
+    RATE_LIMIT_API_PER_MINUTE: int = 120
+
+    # Redis + background job queue (workflows run async — API returns immediately)
+    REDIS_URL: str = ""
+    JOB_QUEUE_ENABLED: bool = True
+
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 
@@ -90,3 +99,17 @@ def is_llm_key_valid() -> bool:
     """True only when a real (non-placeholder) Gemini key is configured."""
     key = (settings.GEMINI_API_KEY or "").strip()
     return key not in _PLACEHOLDER_API_KEYS and len(key) > 10
+
+
+def is_production() -> bool:
+    """True when ENV=production — demo simulate endpoints and UI controls are disabled."""
+    return (settings.ENV or "").strip().lower() == "production"
+
+
+def simulate_endpoints_enabled() -> bool:
+    """Simulate APIs allowed only outside production (buttons hidden, not deleted)."""
+    return not is_production() and settings.SYNTHETIC_DATA_ENABLED
+
+
+def redis_configured() -> bool:
+    return bool((settings.REDIS_URL or "").strip())

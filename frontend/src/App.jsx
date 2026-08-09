@@ -3,6 +3,7 @@ import { HashRouter, Routes, Route, Navigate } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import { ThemeProvider } from "./context/ThemeContext";
 import { AuthProvider, useAuth } from "./context/AuthContext";
+import { AppConfigProvider } from "./context/AppConfigContext";
 import { LiveSocketProvider, useLiveSocketContext } from "./context/LiveSocketContext";
 import Header from "./components/layout/Header";
 
@@ -51,11 +52,13 @@ export default function App() {
   return (
     <ThemeProvider>
       <AuthProvider>
-        <LiveSocketProvider>
-          <HashRouter>
-            <AppShell />
-          </HashRouter>
-        </LiveSocketProvider>
+        <AppConfigProvider>
+          <LiveSocketProvider>
+            <HashRouter>
+              <AppShell />
+            </HashRouter>
+          </LiveSocketProvider>
+        </AppConfigProvider>
       </AuthProvider>
     </ThemeProvider>
   );
