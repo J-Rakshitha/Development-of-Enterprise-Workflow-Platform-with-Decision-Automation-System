@@ -15,7 +15,7 @@ Development Lifecycle under one Decision Engine:
 
 Built for: Infosys Springboard Virtual Internship 7.0 — Batch 1.
 
-**GitHub:** [J-Rakshitha/AI-Agent-Coordination-Decision-Engine](https://github.com/J-Rakshitha/AI-Agent-Coordination-Decision-Engine)
+**GitHub:** [Development-of-Enterprise-Workflow-Platform-with-Decision-Automation-System](https://github.com/J-Rakshitha/Development-of-Enterprise-Workflow-Platform-with-Decision-Automation-System)
 
 ---
 
@@ -750,7 +750,7 @@ The backend recreates all tables automatically on startup.
 
 ## Push to GitHub
 
-Repo: [J-Rakshitha/AI-Agent-Coordination-Decision-Engine](https://github.com/J-Rakshitha/AI-Agent-Coordination-Decision-Engine)
+Repo: [Development-of-Enterprise-Workflow-Platform-with-Decision-Automation-System](https://github.com/J-Rakshitha/Development-of-Enterprise-Workflow-Platform-with-Decision-Automation-System)
 
 > Never commit `backend/.env` — it is gitignored.
 
