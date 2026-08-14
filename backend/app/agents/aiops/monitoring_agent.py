@@ -20,7 +20,7 @@ class MonitoringAgent:
         """
         metrics example:
         {
-            "service_name": "checkout-service",
+            "service_name": "<service from payload>",
             "response_time_ms": 8000,
             "error_rate_pct": 62,
             "db_pool_usage_pct": 95,
@@ -46,3 +46,10 @@ class MonitoringAgent:
             "affected_users_pct": metrics.get("affected_users_pct", 0),
             "raw_metrics": metrics,
         }
+
+    @classmethod
+    def is_recovered(cls, metrics: dict) -> bool:
+        """True only when a live probe is healthy and all anomaly thresholds are clear."""
+        if metrics.get("healthy") is False:
+            return False
+        return cls.detect_anomaly(metrics) is None

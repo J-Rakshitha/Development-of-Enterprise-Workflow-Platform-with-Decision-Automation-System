@@ -13,6 +13,10 @@ async def test_app_config_endpoint(client):
     assert "production" in data
     assert "simulate_enabled" in data
     assert data["simulate_enabled"] is True
+    assert "simulate_ui_enabled" in data
+    assert data["simulate_ui_enabled"] is False
+    assert "monitoring_ui_enabled" in data
+    assert data["monitoring_ui_enabled"] is False
 
 
 @pytest.mark.asyncio

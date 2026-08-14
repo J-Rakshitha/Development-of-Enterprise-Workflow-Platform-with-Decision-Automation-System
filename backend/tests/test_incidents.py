@@ -8,7 +8,7 @@ async def test_simulate_incident_runs_full_pipeline(client):
     assert body["action_taken"]
 
     listed = (await client.get("/api/incidents/")).json()
-    assert len(listed) == 1
+    assert len(listed) == 0
 
 
 async def test_ingest_metrics_healthy_service_no_incident(client):

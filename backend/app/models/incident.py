@@ -25,6 +25,8 @@ class Incident(Base):
     sla_minutes: Mapped[int] = mapped_column(nullable=True)
     sla_deadline: Mapped[datetime] = mapped_column(DateTime, nullable=True)
     escalated_to: Mapped[str] = mapped_column(String(100), nullable=True)
+    source: Mapped[str] = mapped_column(String(30), default="ingest")  # webhook | monitoring | ingest | simulate | legacy
+    triggered_by: Mapped[str | None] = mapped_column(String(100), nullable=True)
 
     actions: Mapped[list["RemediationAction"]] = relationship(back_populates="incident")
 

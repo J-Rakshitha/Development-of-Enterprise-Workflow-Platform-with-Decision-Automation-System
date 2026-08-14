@@ -28,8 +28,10 @@ class Settings(BaseSettings):
     # CORS
     FRONTEND_ORIGIN: str = "http://localhost:5173"
 
-    # Synthetic data generator toggle (safe demo mode)
+    # Synthetic data generator toggle (backend simulate APIs for pytest only)
     SYNTHETIC_DATA_ENABLED: bool = True
+    SIMULATE_UI_ENABLED: bool = False
+    MONITORING_UI_ENABLED: bool = False
 
     # Real GitHub Integration (Phase A — replaces simulated dev-collab data)
     GITHUB_TOKEN: str = ""
@@ -39,6 +41,9 @@ class Settings(BaseSettings):
     GITHUB_WEBHOOK_SECRET: str = ""
     # Public URL of this backend (for webhook setup docs); e.g. https://your-app.onrender.com
     PUBLIC_BACKEND_URL: str = "http://localhost:8000"
+
+    # Real Observability Integration — Grafana/Prometheus alert webhook (AIOps)
+    METRICS_WEBHOOK_SECRET: str = ""
 
     # Anomaly detection thresholds (configurable per environment — not hardcoded in agents)
     MONITORING_RESPONSE_TIME_MS_THRESHOLD: int = 1500

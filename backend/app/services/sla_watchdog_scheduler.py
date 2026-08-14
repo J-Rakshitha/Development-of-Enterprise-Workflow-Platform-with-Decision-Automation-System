@@ -66,6 +66,7 @@ async def _check_sla_breaches() -> None:
                 status="escalated",
                 sla_deadline=incident.sla_deadline.isoformat() if incident.sla_deadline else None,
                 escalated_to=incident.escalated_to,
+                triggered_by=incident.triggered_by,
             )
 
             await manager.broadcast("sla_breach", {

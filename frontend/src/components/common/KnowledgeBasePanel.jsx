@@ -56,7 +56,7 @@ export default function KnowledgeBasePanel() {
     <div className="bg-base-surface border border-base-border rounded-xl p-4">
       <h2 className="text-sm font-semibold text-ink-primary mb-1 flex items-center gap-2">
         <BrainCircuit size={16} className="text-accent-success" />
-        Shared Knowledge Base (Long-Term Memory)
+        Shared Knowledge Base
       </h2>
       <p className="text-xs text-ink-faint mb-3">
         Insights the agents have learned from past incidents and conflicts — reused instead of

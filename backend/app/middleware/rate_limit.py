@@ -12,6 +12,7 @@ _AUTH_PATHS = {"/api/auth/login", "/api/auth/register"}
 _SENSITIVE_PREFIXES = (
     "/api/auth/",
     "/api/dev-collab/github/webhook",
+    "/api/incidents/alert-webhook",
     "/api/incidents/ingest-metrics",
 )
 

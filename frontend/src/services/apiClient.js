@@ -61,10 +61,12 @@ export const repositoryDiscovery = (params) =>
   apiClient.post("/api/dev-collab/repository/discovery", null, { params, timeout: 60000 });
 
 // ---------- AIOps ----------
-export const ingestMetrics = (payload) => apiClient.post("/api/incidents/ingest-metrics", payload);
+export const ingestMetrics = (payload) =>
+  apiClient.post("/api/incidents/ingest-metrics", payload, { timeout: 45000 });
 export const simulateIncident = () =>
   apiClient.post("/api/incidents/simulate", null, { timeout: 45000 });
 export const listIncidents = () => apiClient.get("/api/incidents/");
+export const observabilityStatus = () => apiClient.get("/api/incidents/observability/status");
 
 // ---------- System ----------
 export const getAppConfig = () => apiClient.get("/api/system/app-config");
@@ -88,8 +90,13 @@ export const getToolAccuracy = () => apiClient.get("/api/tools/accuracy");
 
 // ---------- Chat History (E6) ----------
 export const listChatSessions = () => apiClient.get("/api/chat/sessions");
-export const createChatSession = (title = "New conversation") =>
-  apiClient.post("/api/chat/sessions", { title });
+export const createChatSession = (titleOrPayload = "New conversation") => {
+  const title =
+    typeof titleOrPayload === "string"
+      ? titleOrPayload
+      : titleOrPayload?.title || "New conversation";
+  return apiClient.post("/api/chat/sessions", { title });
+};
 export const getChatMessages = (sessionId) =>
   apiClient.get(`/api/chat/sessions/${sessionId}/messages`);
 export const askChatQuestion = (sessionId, question) =>

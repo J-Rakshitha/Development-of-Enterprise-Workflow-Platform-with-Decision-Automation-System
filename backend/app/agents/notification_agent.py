@@ -25,11 +25,7 @@ from app.routers.websocket_routes import manager
 
 logger = logging.getLogger("notification_agent")
 
-DEFAULT_TEAM_RECIPIENTS = [
-    "priya@infosys.com",
-    "arjun@infosys.com",
-    "dev-team@infosys.com",
-]
+DEFAULT_TEAM_RECIPIENTS: list[str] = []
 
 
 def _smtp_configured() -> bool:
@@ -253,7 +249,7 @@ class NotificationAgent:
         ws_payload: dict | None = None,
         recipients: list[str] | None = None,
     ) -> list[TeamNotification]:
-        targets = recipients or NotificationAgent.team_email_recipients()
+        targets = recipients if recipients is not None else NotificationAgent.team_email_recipients()
         sent: list[TeamNotification] = []
 
         for recipient in targets:
@@ -307,6 +303,7 @@ class NotificationAgent:
         dev_b: str,
         risk_score: float,
         code_review: str | None = None,
+        recipients: list[str] | None = None,
     ) -> list[TeamNotification]:
         fn = function_name or "(file-level)"
         subject = f"[Dev-Collab] Conflict risk {risk_score}% — {file_path}"
@@ -324,6 +321,7 @@ class NotificationAgent:
             subject=subject,
             message=message,
             related_entity_id=conflict_id,
+            recipients=recipients,
             ws_payload={
                 "event_type": "conflict_detected",
                 "conflict_id": conflict_id,
@@ -375,6 +373,7 @@ class NotificationAgent:
         status: str,
         sla_deadline: str | None = None,
         escalated_to: str | None = None,
+        triggered_by: str | None = None,
     ) -> list[TeamNotification]:
         subject = f"[AIOps] {severity} incident on {service_name}"
         message = (
@@ -385,8 +384,32 @@ class NotificationAgent:
             message += f"\nSLA deadline: {sla_deadline}"
         if escalated_to:
             message += f"\nEscalated to: {escalated_to}"
-        oncall = settings.NOTIFICATION_ONCALL_EMAIL
-        recipients = [oncall] if oncall else None
+        if triggered_by:
+            message += f"\nTriggered by: {triggered_by}"
+
+        # Dashboard shows the person who triggered (Prem / Grafana), not escalation team
+        who = (triggered_by or "").strip()
+        if not who or who.lower() in (
+            "on-call", "on call", "oncall",
+            "backend engineering team", "incident response", "sla watchdog",
+        ):
+            # No person label → skip ops:* card (still email on-call if configured)
+            recipients = []
+        else:
+            recipients = [f"ops:{who}"]
+
+        # Also deliver to real on-call inbox when configured (non-demo)
+        oncall = (settings.NOTIFICATION_ONCALL_EMAIL or "").strip()
+        if oncall and not oncall.endswith("@infosys.com") and oncall not in recipients:
+            recipients.append(oncall)
+        team = (settings.NOTIFICATION_TEAM_EMAILS or "").strip()
+        if team:
+            for email in [e.strip() for e in team.split(",") if e.strip()]:
+                if email.endswith("@infosys.com"):
+                    continue
+                if email not in recipients:
+                    recipients.append(email)
+
         return await NotificationAgent._notify_team(
             db,
             event_type="incident_created",
@@ -401,5 +424,6 @@ class NotificationAgent:
                 "service_name": service_name,
                 "severity": severity,
                 "subject": subject,
+                "triggered_by": who,
             },
         )

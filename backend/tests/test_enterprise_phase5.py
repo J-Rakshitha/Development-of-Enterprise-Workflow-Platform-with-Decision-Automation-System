@@ -19,16 +19,24 @@ async def test_simulate_conflict_runs_enterprise_pipeline(client):
     assert res.status_code == 200
     conflict_id = res.json()["conflict_id"]
 
+    from app.core.database import AsyncSessionLocal
+    from app.models.dev_collab import ConflictEvent
+    import json
+
+    async with AsyncSessionLocal() as db:
+        row = await db.get(ConflictEvent, conflict_id)
+        assert row.discovery_context is not None
+        assert row.semantic_analysis is not None
+        assert row.quality_report is not None
+        assert row.code_review_notes is not None
+        semantic = json.loads(row.semantic_analysis)
+        quality = json.loads(row.quality_report)
+        assert semantic["semantic_risk_score"] >= 0
+        assert quality["grade"] in ("A", "B", "C")
+
     conflicts = await client.get("/api/dev-collab/conflicts")
     assert conflicts.status_code == 200
-    row = next(c for c in conflicts.json() if c["id"] == conflict_id)
-
-    assert row["discovery_context"] is not None
-    assert row["semantic_analysis"] is not None
-    assert row["quality_report"] is not None
-    assert row["code_review_notes"] is not None
-    assert row["semantic_analysis"]["semantic_risk_score"] >= 0
-    assert row["quality_report"]["grade"] in ("A", "B", "C")
+    assert not any(c["id"] == conflict_id for c in conflicts.json())
 
 
 @pytest.mark.asyncio

@@ -17,7 +17,7 @@ from app.core.deps import get_current_user
 from app.models.user import User
 from app.schemas import StartEditRequest
 from app.models.dev_collab import Developer, ConflictEvent, CommitLog
-from app.agents.dev_collab.code_watch_agent import CodeWatchAgent
+from app.agents.dev_collab.code_watch_agent import CodeWatchAgent, DEMO_DEV_NAMES
 from app.agents.dev_collab.conflict_prediction_agent import OverlapDetectionAgent, ConflictPredictionAgent
 from app.agents.dev_collab.resolution_suggestion_agent import ResolutionSuggestionAgent
 from app.agents.dev_collab.resolution_synthesizer_agent import ResolutionSynthesizerAgent
@@ -31,6 +31,8 @@ from app.services.github_sync_service import enrich_and_notify_conflict, run_git
 from app.services.github_webhook_service import GitHubWebhookService
 from app.services import hitl_service, repo_service
 from app.core.config import settings, simulate_endpoints_enabled
+from app.core.datetime_utils import utc_iso
+from app.services.demo_filters import is_demo_commit
 from app.routers.websocket_routes import manager
 
 router = APIRouter(prefix="/api/dev-collab", tags=["Dev Collaboration"])
@@ -47,15 +49,14 @@ class DeferIn(BaseModel):
 class RepoSubmitIn(BaseModel):
     repo_url: str
 
-# Demo-safe developer pool used by the "Simulate Conflict" button, so a
-# presenter can trigger a realistic scenario with one click, no real
-# IDE/git integration required.
-DEMO_DEV_NAMES = [
-    ("Priya Sharma", "#4F8CFF"),
-    ("Arjun Mehta", "#FF6B6B"),
-    ("Sneha Reddy", "#3ECF8E"),
-    ("Karthik Rao", "#F5A623"),
-]
+# Demo-safe developer pool used by the "Simulate Conflict" button (pytest / dev API only).
+DEMO_DEV_COLORS = {
+    "Priya Sharma": "#4F8CFF",
+    "Arjun Mehta": "#FF6B6B",
+    "Sneha Reddy": "#3ECF8E",
+    "Karthik Rao": "#F5A623",
+}
+DEMO_DEV_NAME_PAIRS = [(name, DEMO_DEV_COLORS[name]) for name in DEMO_DEV_NAMES]
 
 
 async def _enrich_and_notify_conflict(
@@ -103,8 +104,8 @@ async def get_active_sessions(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """Live map of who's editing what right now."""
-    sessions = await CodeWatchAgent.get_active_sessions(db)
+    """Live map from GitHub repo scan (demo hardcoded names excluded)."""
+    sessions = await CodeWatchAgent.get_active_sessions(db, github_only=True)
     output = []
     for s in sessions:
         dev = await db.get(Developer, s.developer_id)
@@ -115,7 +116,8 @@ async def get_active_sessions(
             "avatar_color": dev.avatar_color if dev else "#6C63FF",
             "file_path": s.file_path,
             "function_name": s.function_name,
-            "started_at": s.started_at,
+            "started_at": utc_iso(s.started_at),
+            "source": "github",
         })
     return output
 
@@ -187,8 +189,12 @@ async def list_conflicts(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """All predicted/resolved conflicts, newest first, with developer names resolved."""
-    result = await db.execute(select(ConflictEvent).order_by(ConflictEvent.created_at.desc()))
+    """Predicted/resolved conflicts from real GitHub sync only (seed/simulated hidden)."""
+    result = await db.execute(
+        select(ConflictEvent)
+        .where(ConflictEvent.source == "github")
+        .order_by(ConflictEvent.created_at.desc())
+    )
     conflicts = result.scalars().all()
 
     output = []
@@ -389,11 +395,13 @@ async def list_commits(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """Recent commit history (created automatically when conflicts are resolved)."""
-    result = await db.execute(select(CommitLog).order_by(CommitLog.created_at.desc()).limit(20))
+    """Recent commit history — demo seed commits hidden; real GitHub resolutions shown."""
+    result = await db.execute(select(CommitLog).order_by(CommitLog.created_at.desc()).limit(50))
     commits = result.scalars().all()
     output = []
     for c in commits:
+        if await is_demo_commit(db, c):
+            continue
         dev = await db.get(Developer, c.developer_id)
         output.append({
             "id": c.id,
@@ -404,6 +412,8 @@ async def list_commits(
             "had_conflict": c.had_conflict,
             "created_at": c.created_at,
         })
+        if len(output) >= 20:
+            break
     return output
 
 
@@ -420,7 +430,7 @@ async def simulate_demo_conflict(
     """
     if not simulate_endpoints_enabled():
         raise HTTPException(status_code=403, detail="Simulate endpoints are disabled in production.")
-    (dev_a_name, dev_a_color), (dev_b_name, dev_b_color) = random.sample(DEMO_DEV_NAMES, 2)
+    (dev_a_name, dev_a_color), (dev_b_name, dev_b_color) = random.sample(DEMO_DEV_NAME_PAIRS, 2)
     edit_event = random_edit_event()
 
     dev_a = await CodeWatchAgent.get_or_create_developer(db, dev_a_name, avatar_color=dev_a_color)

@@ -12,6 +12,7 @@ import {
 } from "../services/apiClient";
 import { useLiveSocketContext } from "../context/LiveSocketContext";
 import { useAppConfig } from "../context/AppConfigContext";
+import { formatLiveDateTime } from "../utils/datetime";
 
 const statusColor = {
   running: "text-accent-devcollab",
@@ -180,7 +181,7 @@ export default function WorkflowsPage() {
                   </span>
                 </div>
                 <p className="text-[11px] text-ink-faint mt-1">
-                  Step {run.current_step_index + 1} · {new Date(run.started_at).toLocaleString()}
+                  Step {run.current_step_index + 1} · {formatLiveDateTime(run.started_at)}
                 </p>
                 <div className="flex gap-2 mt-2">
                   {run.status === "waiting_hitl" && (

@@ -125,7 +125,8 @@ async def _run_probe_cycle() -> None:
                 "error_rate_pct": probe["error_rate_pct"],
                 "db_pool_usage_pct": probe.get("db_pool_usage_pct", 0),
                 "affected_users_pct": probe.get("affected_users_pct", 0),
-                "monitor_source": "background_monitor",
+                "incident_source": "monitoring",
+                "triggered_by": "Monitoring Scheduler",
             }
 
             is_healthy = probe["healthy"] and MonitoringAgent.detect_anomaly(metrics) is None

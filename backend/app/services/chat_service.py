@@ -24,7 +24,8 @@ async def list_sessions(db: AsyncSession, user: User) -> list[dict]:
 
 
 async def create_session(db: AsyncSession, user: User, title: str = "New conversation") -> dict:
-    session = ChatSession(user_id=user.id, title=title[:200])
+    safe_title = str(title or "New conversation").strip() or "New conversation"
+    session = ChatSession(user_id=user.id, title=safe_title[:200])
     db.add(session)
     await db.commit()
     await db.refresh(session)
@@ -53,7 +54,7 @@ async def _build_answer(db: AsyncSession, question: str) -> str:
     )
     incident_count = await db.scalar(select(func.count()).select_from(Incident))
     open_incidents = await db.scalar(
-        select(func.count()).select_from(Incident).where(Incident.status != "resolved")
+        select(func.count()).select_from(Incident).where(Incident.status.in_(["open", "escalated"]))
     )
     sessions = await db.scalar(
         select(func.count()).select_from(FileEditSession).where(FileEditSession.is_active.is_(True))

@@ -1,14 +1,8 @@
 """
 Root-Cause Analysis Agent
 ==========================
-Given an anomaly, explains WHY it likely happened. Uses Hybrid AI
-(LangChain-wrapped LLM, with rule-based fallback) AND Memory:
-
-  - Long-term memory: checks the Knowledge Base first for this exact
-    service+error pattern. If seen before, that prior insight is fed to the
-    LLM as context (and used directly as the fallback if the LLM is down).
-  - Short-term memory: recent related decisions are included as context so
-    the agent reasons with situational awareness, not in isolation.
+Explains WHY an anomaly likely happened from THIS run's live metrics.
+Never reuses identical prior text — each trigger gets fresh, suitable wording.
 """
 from app.agents.llm.llm_client import HybridAIClient
 from app.agents.llm.fallback_rules import fallback_root_cause
@@ -20,48 +14,44 @@ from app.agents.memory_agent import MemoryAgent
 class RootCauseAgent:
 
     @staticmethod
-    async def analyze(db, service_name: str, error_signature: str, raw_metrics: dict) -> dict:
+    async def analyze(
+        db,
+        service_name: str,
+        error_signature: str,
+        raw_metrics: dict,
+        triggered_by: str | None = None,
+    ) -> dict:
         key_signature = f"{service_name}:{error_signature}"
+        who = (triggered_by or "System").strip() or "System"
 
-        # Long-term memory lookup — have we seen this exact pattern before?
-        past_knowledge = await MemoryAgent.recall_knowledge(db, key_signature)
-        # Short-term memory — what has this module been doing recently?
-        recent_context = await MemoryAgent.recall_recent(db, module="aiops", limit=3)
-
-        memory_context = ""
-        if past_knowledge:
-            memory_context += (
-                f"\nLong-term memory (seen {past_knowledge.success_count}x before): "
-                f"{past_knowledge.insight}"
+        def fallback():
+            return fallback_root_cause(
+                service_name,
+                error_signature,
+                raw_metrics=raw_metrics,
+                triggered_by=who,
             )
-        if recent_context:
-            memory_context += "\nShort-term memory (recent related activity):\n- " + "\n- ".join(recent_context)
 
-        prompt = ROOT_CAUSE_PROMPT.format(
+        # Card text is always THIS run's live metrics — do not reuse LLM/memory copy
+        text = fallback()
+        result = await HybridAIClient.reason(prompt=ROOT_CAUSE_PROMPT.format(
             service_name=service_name,
             raw_metrics=raw_metrics,
             error_signature=error_signature,
-            memory_context=memory_context,
-        )
-
-        def fallback():
-            if past_knowledge:
-                return past_knowledge.insight
-            return fallback_root_cause(service_name, error_signature)
-
-        result = await HybridAIClient.reason(prompt=prompt, fallback_fn=fallback)
+            triggered_by=who,
+            memory_context="",
+        ), fallback_fn=fallback)
 
         await CoordinatorAgent.log_decision(
             db=db,
             agent_name="Root-Cause Analysis Agent",
             module="aiops",
-            decision_summary=result.text,
+            decision_summary=text,
             used_llm=result.used_llm,
         )
 
-        # Reinforce long-term memory with this outcome for next time.
         await MemoryAgent.remember(
-            db, category="incident_resolution", key_signature=key_signature, insight=result.text
+            db, category="incident_resolution", key_signature=key_signature, insight=text
         )
 
-        return {"root_cause": result.text, "used_llm": result.used_llm}
+        return {"root_cause": text, "used_llm": result.used_llm}

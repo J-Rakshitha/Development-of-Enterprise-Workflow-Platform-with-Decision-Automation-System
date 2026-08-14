@@ -1,5 +1,23 @@
 import React, { useEffect, useState } from "react";
 import { Clock, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { formatLiveDateTime, parseUtcDate } from "../../utils/datetime";
+
+/** Generic labels that look like demo/fake teams — hide from AIOps cards. */
+const HIDDEN_ESCALATION_LABELS = new Set([
+  "backend engineering team",
+  "incident response",
+  "sla watchdog",
+  "on call",
+  "on-call",
+  "oncall",
+]);
+
+function visibleEscalationTarget(escalatedTo) {
+  if (!escalatedTo || typeof escalatedTo !== "string") return null;
+  const label = escalatedTo.trim().toLowerCase();
+  if (HIDDEN_ESCALATION_LABELS.has(label)) return null;
+  return escalatedTo.trim();
+}
 
 function formatDuration(totalSeconds) {
   const abs = Math.abs(totalSeconds);
@@ -13,21 +31,27 @@ function formatDuration(totalSeconds) {
 
 export default function SlaCountdown({ slaDeadline, slaMinutes, status, resolvedAt, detectedAt, escalatedTo }) {
   const [now, setNow] = useState(() => Date.now());
-
-  useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(timer);
-  }, []);
-
-  if (!slaDeadline && !slaMinutes) return null;
-
-  const deadlineMs = slaDeadline ? new Date(slaDeadline).getTime() : null;
+  const deadline = parseUtcDate(slaDeadline);
+  const deadlineMs = deadline ? deadline.getTime() : null;
   const remainingSec = deadlineMs ? Math.floor((deadlineMs - now) / 1000) : null;
   const isResolved = status === "auto_resolved" || status === "closed";
   const isEscalated = status === "escalated" || Boolean(escalatedTo);
+  const breached = remainingSec != null && remainingSec <= 0;
+  const escalationTarget = visibleEscalationTarget(escalatedTo);
+
+  useEffect(() => {
+    if (isResolved || breached) return undefined;
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [isResolved, breached]);
+
+  if (!slaDeadline && !slaMinutes) return null;
 
   if (isResolved && resolvedAt && deadlineMs) {
-    const resolvedMs = new Date(resolvedAt).getTime();
+    const resolved = parseUtcDate(resolvedAt);
+    const detected = parseUtcDate(detectedAt);
+    const resolvedMs = resolved ? resolved.getTime() : NaN;
+    const detectedMs = detected ? detected.getTime() : NaN;
     const metSla = resolvedMs <= deadlineMs;
     return (
       <div
@@ -37,8 +61,8 @@ export default function SlaCountdown({ slaDeadline, slaMinutes, status, resolved
       >
         {metSla ? <CheckCircle2 size={12} /> : <AlertTriangle size={12} />}
         <span>
-          {metSla ? "SLA met" : "SLA breached"} — resolved in{" "}
-          {formatDuration(Math.floor((resolvedMs - new Date(detectedAt).getTime()) / 1000))}
+          {metSla ? "SLA met" : "SLA missed"} — resolved in{" "}
+          {formatDuration(Math.floor((resolvedMs - detectedMs) / 1000))}
           {slaMinutes ? ` (target: ${slaMinutes} min)` : ""}
         </span>
       </div>
@@ -47,28 +71,40 @@ export default function SlaCountdown({ slaDeadline, slaMinutes, status, resolved
 
   if (remainingSec == null) return null;
 
-  const breached = remainingSec <= 0;
+  if (breached) {
+    return (
+      <div className="mt-2 space-y-1">
+        <div className="flex items-center gap-1.5 text-[11px] rounded-md px-2 py-1 text-red-400 bg-red-500/10 border border-red-500/30">
+          <AlertTriangle size={12} />
+          <span>
+            SLA missed at {formatLiveDateTime(slaDeadline)}
+            {slaMinutes ? ` (${slaMinutes} min SLA)` : ""}
+          </span>
+        </div>
+        {escalationTarget && (
+          <p className="text-[10px] text-ink-muted px-2">Escalated to: {escalationTarget}</p>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="mt-2 space-y-1">
       <div
         className={`flex items-center gap-1.5 text-[11px] rounded-md px-2 py-1 ${
-          breached
-            ? "text-red-400 bg-red-500/10 border border-red-500/30"
-            : isEscalated
-              ? "text-accent-warning bg-accent-warning/10"
-              : "text-accent-aiops bg-accent-aiops/10"
+          isEscalated
+            ? "text-accent-warning bg-accent-warning/10"
+            : "text-accent-aiops bg-accent-aiops/10"
         }`}
       >
-        <Clock size={12} className={breached ? "animate-pulse" : ""} />
+        <Clock size={12} />
         <span>
-          {breached ? "SLA breached" : "SLA countdown"}:{" "}
-          {breached ? `over by ${formatDuration(remainingSec)}` : `${formatDuration(remainingSec)} remaining`}
+          SLA countdown: {formatDuration(remainingSec)} remaining
           {slaMinutes ? ` (${slaMinutes} min SLA)` : ""}
         </span>
       </div>
-      {escalatedTo && (
-        <p className="text-[10px] text-ink-muted px-2">Escalated to: {escalatedTo}</p>
+      {escalationTarget && (
+        <p className="text-[10px] text-ink-muted px-2">Escalated to: {escalationTarget}</p>
       )}
     </div>
   );

@@ -17,6 +17,7 @@ import {
 import { useLiveSocketContext } from "../context/LiveSocketContext";
 import { useAppConfig } from "../context/AppConfigContext";
 import RepoSubmitPanel from "../components/common/RepoSubmitPanel";
+import { formatLiveTime } from "../utils/datetime";
 
 const EVENTS_THAT_REFRESH = ["edit_session_started", "edit_session_ended", "conflict_detected", "conflict_resolved", "conflict_suggestion_ready", "conflict_updated", "repo_scanned"];
 
@@ -41,7 +42,7 @@ export default function DevCollabPage() {
   const [discovering, setDiscovering] = useState(false);
   const [discoveryResult, setDiscoveryResult] = useState(null);
   const { lastEvent } = useLiveSocketContext();
-  const { simulateEnabled } = useAppConfig();
+  const { simulateUiEnabled } = useAppConfig();
 
   const loadData = useCallback(() => {
     Promise.all([getActiveSessions(), listConflicts(), listCommits()])
@@ -266,7 +267,7 @@ export default function DevCollabPage() {
               >
                 <RefreshCw size={14} />
               </button>
-              {simulateEnabled && (
+              {simulateUiEnabled && (
                 <button
                   onClick={handleSimulate}
                   disabled={simulating}
@@ -287,13 +288,7 @@ export default function DevCollabPage() {
 
           {!error && sessions.length === 0 && (
             <p className="text-xs text-ink-muted">
-              No active edit sessions.
-              {simulateEnabled ? (
-                <> Click <span className="text-accent-devcollab">Simulate Conflict</span> for a demo scenario, or </>
-              ) : (
-                <> Use </>
-              )}
-              <span className="text-ink-primary">Sync with GitHub</span> above for real repo data.
+              Connect GitHub repo and click <span className="text-ink-primary">Sync with GitHub</span> to see live conflicts and edit sessions from open PRs.
             </p>
           )}
 
@@ -309,7 +304,7 @@ export default function DevCollabPage() {
                   <span className="text-ink-muted font-mono">{s.file_path} → {s.function_name}</span>
                 </div>
                 <span className="text-ink-faint">
-                  {new Date(s.started_at).toLocaleTimeString()}
+                  {formatLiveTime(s.started_at)}
                 </span>
               </div>
             ))}

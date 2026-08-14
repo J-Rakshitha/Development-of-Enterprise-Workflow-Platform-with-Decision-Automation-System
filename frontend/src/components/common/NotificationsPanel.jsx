@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { Bell, Mail, Radio, Check } from "lucide-react";
 import { getNotifications, acknowledgeNotification } from "../../services/apiClient";
 import { useLiveSocketContext } from "../../context/LiveSocketContext";
+import { formatLiveDateTime } from "../../utils/datetime";
 
 const eventLabel = {
   conflict_detected: "Conflict Detected",
@@ -34,6 +35,15 @@ function channelLabel(channel) {
   if (channel === "teams") return "Teams";
   if (channel === "teams_failed") return "Teams (failed)";
   return channel;
+}
+
+function formatRecipient(recipient) {
+  if (!recipient) return "";
+  let name = recipient;
+  if (name.startsWith("ops:")) name = name.slice(4);
+  else if (name.startsWith("github:")) name = name.slice(7);
+  if (/^on[-\s]?call$/i.test(name.trim())) return "Incident Response";
+  return name;
 }
 
 export default function NotificationsPanel() {
@@ -84,7 +94,7 @@ export default function NotificationsPanel() {
 
       {!error && visible.length === 0 && (
         <p className="text-xs text-ink-muted">
-          No team alerts yet — simulate a conflict or incident to see notifications here.
+          No alerts yet — sync GitHub for PR conflict alerts, or create a real incident (Send Real Test Metrics / Grafana webhook).
         </p>
       )}
 
@@ -103,9 +113,9 @@ export default function NotificationsPanel() {
                 </span>
               </div>
               <p className="text-xs text-ink-primary font-medium mb-0.5">{n.subject}</p>
-              <p className="text-[11px] text-ink-muted truncate">{n.recipient}</p>
+              <p className="text-[11px] text-ink-muted truncate">{formatRecipient(n.recipient)}</p>
               <p className="text-[11px] text-ink-faint mt-1">
-                {new Date(n.created_at).toLocaleString()}
+                {formatLiveDateTime(n.created_at)}
               </p>
               {!n.acknowledged && (
                 <button

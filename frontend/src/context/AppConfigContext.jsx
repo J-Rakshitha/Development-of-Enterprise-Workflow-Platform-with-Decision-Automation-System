@@ -4,7 +4,9 @@ import apiClient from "../services/apiClient";
 const AppConfigContext = createContext({
   loading: true,
   production: false,
-  simulateEnabled: true,
+  simulateEnabled: false,
+  simulateUiEnabled: false,
+  monitoringUiEnabled: false,
   jobQueue: null,
 });
 
@@ -24,7 +26,9 @@ export function AppConfigProvider({ children }) {
       .catch(() =>
         setConfig({
           production: frontendProduction(),
-          simulate_enabled: !frontendProduction(),
+          simulate_enabled: false,
+          simulate_ui_enabled: false,
+          monitoring_ui_enabled: false,
         })
       )
       .finally(() => setLoading(false));
@@ -38,6 +42,8 @@ export function AppConfigProvider({ children }) {
       loading,
       production: frontendProduction() || backendProduction,
       simulateEnabled,
+      simulateUiEnabled: Boolean(config?.simulate_ui_enabled),
+      monitoringUiEnabled: Boolean(config?.monitoring_ui_enabled),
       jobQueue: config?.job_queue || null,
       env: config?.env || import.meta.env.VITE_ENV || "development",
     };

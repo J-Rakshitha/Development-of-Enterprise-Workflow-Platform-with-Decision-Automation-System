@@ -92,6 +92,53 @@ async def handler_semantic_knowledge_search(db, query: str = "", **kwargs) -> di
     return {"success": True, "output": result}
 
 
+async def handler_list_open_prs(db, **kwargs) -> dict:
+    """List open pull requests from the configured GitHub repository."""
+    from app.agents.dev_collab.github_integration_agent import GitHubIntegrationAgent
+
+    result = await GitHubIntegrationAgent.fetch_open_pull_requests()
+    if not result["connected"]:
+        return {"success": False, "output": result.get("error") or "GitHub not connected"}
+    return {"success": True, "output": result["pull_requests"]}
+
+
+async def handler_get_pr_diff(db, pr_number: int = 0, **kwargs) -> dict:
+    """Fetch file-level diff summary for a GitHub pull request."""
+    import httpx
+    from app.core.config import settings
+    from app.agents.dev_collab.github_integration_agent import GitHubIntegrationAgent
+
+    if not GitHubIntegrationAgent.is_configured() or pr_number <= 0:
+        return {"success": False, "output": "GitHub not configured or invalid PR number"}
+    owner, repo = settings.GITHUB_REPO_OWNER, settings.GITHUB_REPO_NAME
+    url = f"https://api.github.com/repos/{owner}/{repo}/pulls/{pr_number}/files"
+    try:
+        async with httpx.AsyncClient(timeout=15.0, headers=GitHubIntegrationAgent._headers()) as client:
+            resp = await client.get(url)
+            resp.raise_for_status()
+            files = [
+                {
+                    "filename": f["filename"],
+                    "status": f["status"],
+                    "additions": f.get("additions", 0),
+                    "deletions": f.get("deletions", 0),
+                    "patch_preview": (f.get("patch") or "")[:500],
+                }
+                for f in resp.json()
+            ]
+        return {"success": True, "output": {"pr_number": pr_number, "files": files}}
+    except Exception as exc:
+        return {"success": False, "output": str(exc)}
+
+
+async def handler_sync_github_repo(db, **kwargs) -> dict:
+    """Sync live GitHub PRs, rebuild Live Editing Map, and detect conflicts."""
+    from app.services.github_sync_service import run_github_sync
+
+    result = await run_github_sync(db, trigger="tool")
+    return {"success": bool(result.get("synced")), "output": result}
+
+
 def register_all_tools() -> None:
     register_tool(Tool(
         name="github_issue_lookup",
@@ -140,6 +187,24 @@ def register_all_tools() -> None:
         description="Semantic RAG search over institutional knowledge and past agent decisions.",
         keywords=["search", "rag", "knowledge", "semantic", "similar", "history", "embedding"],
         handler=handler_semantic_knowledge_search,
+    ))
+    register_tool(Tool(
+        name="list_open_prs",
+        description="List open pull requests from the configured GitHub repository.",
+        keywords=["github", "pull request", "pr", "open", "repo", "branch"],
+        handler=handler_list_open_prs,
+    ))
+    register_tool(Tool(
+        name="get_pr_diff",
+        description="Fetch file-level diff summary for a GitHub pull request number.",
+        keywords=["github", "diff", "patch", "pull request", "pr", "files", "merge"],
+        handler=handler_get_pr_diff,
+    ))
+    register_tool(Tool(
+        name="sync_github_repo",
+        description="Sync GitHub repo — rebuild Live Editing Map and detect real merge conflicts.",
+        keywords=["github", "sync", "scan", "conflict", "live map", "repository"],
+        handler=handler_sync_github_repo,
     ))
 
 

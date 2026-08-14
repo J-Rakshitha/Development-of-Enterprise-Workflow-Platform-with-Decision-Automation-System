@@ -31,9 +31,7 @@ async def test_start_incident_response_workflow(client):
 async def test_dev_conflict_workflow_hitl_pause_and_resume(client):
     sim = await client.post("/api/dev-collab/simulate-demo-conflict", timeout=60.0)
     assert sim.status_code == 200
-    conflicts = (await client.get("/api/dev-collab/conflicts")).json()
-    assert conflicts
-    conflict_id = conflicts[0]["id"]
+    conflict_id = sim.json()["conflict_id"]
 
     start = await client.post(
         "/api/workflows/start",

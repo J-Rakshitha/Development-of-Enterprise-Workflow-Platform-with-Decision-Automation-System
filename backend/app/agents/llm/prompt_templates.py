@@ -11,9 +11,12 @@ from langchain_core.prompts import ChatPromptTemplate
 
 ROOT_CAUSE_PROMPT = ChatPromptTemplate.from_template(
     "An incident was detected on service '{service_name}'. "
-    "Metrics: {raw_metrics}. Error signature: {error_signature}."
+    "Metrics: {raw_metrics}. Error signature: {error_signature}. "
+    "This run was triggered by: {triggered_by}."
     "{memory_context}\n"
-    "In 2 short sentences, explain the most likely root cause a DevOps engineer would suspect."
+    "In 2 short sentences, explain the most likely root cause a DevOps engineer would suspect "
+    "for THESE exact metrics. Do not copy prior memory verbatim. "
+    "Do not invent specific commit hashes or filenames unless they appear in the metrics."
 )
 
 CONFLICT_RESOLUTION_PROMPT = ChatPromptTemplate.from_template(

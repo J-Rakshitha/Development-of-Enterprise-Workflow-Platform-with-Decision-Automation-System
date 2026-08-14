@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.coordinator_agent import CoordinatorAgent
 from app.core.config import settings
+from app.core.datetime_utils import utc_iso
 from app.agents.dev_collab.resolution_suggestion_agent import ResolutionSuggestionAgent
 from app.agents.dev_collab.resolution_synthesizer_agent import ResolutionSynthesizerAgent
 from app.agents.dev_collab.semantic_analysis_agent import SemanticAnalysisAgent
@@ -68,9 +69,9 @@ def _serialize_run(run: WorkflowRun, definition: WorkflowDefinition | None = Non
         "incident_id": run.incident_id,
         "context": ctx,
         "error_message": run.error_message,
-        "started_at": run.started_at,
-        "completed_at": run.completed_at,
-        "updated_at": run.updated_at,
+        "started_at": utc_iso(run.started_at),
+        "completed_at": utc_iso(run.completed_at),
+        "updated_at": utc_iso(run.updated_at),
     }
 
 
@@ -532,8 +533,8 @@ async def get_timeline(db: AsyncSession, run_id: int) -> list[dict]:
             "output": _parse_json(log.output_json) if log.output_json else None,
             "error_message": log.error_message,
             "retry_count": log.retry_count,
-            "started_at": log.started_at,
-            "completed_at": log.completed_at,
+            "started_at": utc_iso(log.started_at),
+            "completed_at": utc_iso(log.completed_at),
         }
         for log in logs
     ]

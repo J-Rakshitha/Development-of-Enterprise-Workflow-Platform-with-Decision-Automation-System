@@ -85,6 +85,11 @@ class GitHubIntegrationAgent:
                         "files": files,
                         "mergeable_state": mergeable_state,
                         "url": pr["html_url"],
+                        # PR raise time (prefer list payload; fall back to detail)
+                        "created_at": (
+                            pr.get("created_at")
+                            or (detail_resp.json().get("created_at") if detail_resp.status_code == 200 else None)
+                        ),
                     }
 
                 pull_requests = await asyncio.gather(*(fetch_pr_extras(pr) for pr in prs_raw))

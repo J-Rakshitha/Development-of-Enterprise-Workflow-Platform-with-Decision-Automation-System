@@ -39,18 +39,32 @@ class CoordinatorAgent:
         return entry
 
     @staticmethod
+    def commit_matches_service(service_hint: str | None, file_path: str | None) -> bool:
+        """True only when commit file name shares a keyword with the affected service."""
+        if not service_hint or not file_path:
+            return False
+        service_keyword = (
+            service_hint.lower()
+            .replace("-service", "")
+            .replace("_service", "")
+            .replace("-", "")
+            .replace("_", "")
+            .strip()
+        )
+        base = file_path.replace("\\", "/").split("/")[-1]
+        file_keyword = base.split(".")[0].lower().replace("_", "").replace("-", "").strip()
+        if not service_keyword or not file_keyword:
+            return False
+        return service_keyword in file_keyword or file_keyword in service_keyword
+
+    @staticmethod
     async def find_linked_commit(db: AsyncSession, service_hint: str, window_hours: int = 48) -> CommitLog | None:
         """
-        Cross-module unique feature: when an incident happens, look back at
-        recent commits to suggest a likely trigger. This is what makes the
-        two modules feel like ONE coordinated engine instead of two separate
-        tools.
+        Cross-module correlation: link an incident only when a recent commit
+        file clearly matches the affected service (e.g. checkout.py ↔ checkout-service).
 
-        Matching strategy:
-          1. Prefer a commit whose file name shares a keyword with the
-             affected service (e.g. "checkout.py" <-> "checkout-service").
-          2. Otherwise, fall back to the most recent commit that had a
-             resolved conflict — still a plausible risk signal.
+        No weak fallback to "any recent conflict" — that produced false links
+        (payment-service → unrelated PR merge) and looked like demo noise.
         """
         since = datetime.utcnow() - timedelta(hours=window_hours)
         stmt = select(CommitLog).where(CommitLog.created_at >= since).order_by(CommitLog.created_at.desc())
@@ -59,15 +73,15 @@ class CoordinatorAgent:
         if not commits:
             return None
 
-        service_keyword = service_hint.lower().replace("-service", "").replace("-", "").replace("_", "")
+        from app.services.demo_filters import is_demo_commit_hash
+
+        # Skip leftover seed_full_demo commits so real incidents are not falsely linked
+        commits = [c for c in commits if not is_demo_commit_hash(c.commit_hash)]
+        if not commits:
+            return None
 
         for commit in commits:
-            file_keyword = commit.file_path.split(".")[0].lower().replace("_", "").replace("-", "")
-            if service_keyword and (service_keyword in file_keyword or file_keyword in service_keyword):
-                return commit
-
-        for commit in commits:
-            if commit.had_conflict:
+            if CoordinatorAgent.commit_matches_service(service_hint, commit.file_path):
                 return commit
 
         return None

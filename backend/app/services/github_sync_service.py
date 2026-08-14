@@ -20,6 +20,7 @@ async def enrich_and_notify_conflict(
     dev_a_name: str,
     dev_b_name: str,
     risk_score: float,
+    recipients: list[str] | None = None,
 ) -> dict:
     """
     Enterprise pipeline:
@@ -74,6 +75,7 @@ async def enrich_and_notify_conflict(
         dev_b=dev_b_name,
         risk_score=risk_score,
         code_review=review["review"],
+        recipients=recipients,
     )
     return {
         "discovery": discovery,
@@ -95,6 +97,13 @@ async def run_github_sync(db: AsyncSession, trigger: str = "manual") -> dict:
     found_conflicts = GitHubIntegrationAgent.find_real_conflicts(result["pull_requests"])
     created = []
     skipped_duplicates = 0
+
+    sessions_created = await CodeWatchAgent.sync_live_map_from_github(db, result["pull_requests"])
+    await manager.broadcast("repo_scanned", {
+        "source": "github",
+        "sessions_created": sessions_created,
+        "pull_requests": len(result["pull_requests"]),
+    })
 
     for fc in found_conflicts:
         existing_stmt = select(ConflictEvent).where(
@@ -135,7 +144,10 @@ async def run_github_sync(db: AsyncSession, trigger: str = "manual") -> dict:
             related_entity_id=event.id,
         )
 
-        await enrich_and_notify_conflict(db, event, fc["dev_a"], fc["dev_b"], fc["risk_score"])
+        await enrich_and_notify_conflict(
+            db, event, fc["dev_a"], fc["dev_b"], fc["risk_score"],
+            recipients=_github_notification_recipients(fc["dev_a"], fc["dev_b"]),
+        )
 
         await manager.broadcast("conflict_detected", {
             "conflict_id": event.id,
@@ -154,5 +166,14 @@ async def run_github_sync(db: AsyncSession, trigger: str = "manual") -> dict:
         "conflicts_found": len(created),
         "conflicts_already_known": skipped_duplicates,
         "conflict_ids": created,
+        "live_map_sessions": sessions_created,
         "trigger": trigger,
     }
+
+
+def _github_notification_recipients(dev_a: str, dev_b: str) -> list[str]:
+    recipients = []
+    for name in (dev_a, dev_b):
+        if name and name != "base branch" and name not in recipients:
+            recipients.append(f"github:{name}")
+    return recipients

@@ -17,6 +17,7 @@ import {
 import { useLiveSocketContext } from "../context/LiveSocketContext";
 import { useAuth } from "../context/AuthContext";
 import { useAppConfig } from "../context/AppConfigContext";
+import { formatLiveTime } from "../utils/datetime";
 
 export default function MonitoringPage() {
   const [summary, setSummary] = useState(null);
@@ -64,7 +65,7 @@ export default function MonitoringPage() {
               idx: i + 1,
               ms: h.response_time_ms || 0,
               healthy: h.healthy,
-              time: new Date(h.checked_at).toLocaleTimeString(),
+              time: formatLiveTime(h.checked_at),
             }))
         );
       }
@@ -102,7 +103,7 @@ export default function MonitoringPage() {
             idx: i + 1,
             ms: h.response_time_ms || 0,
             healthy: h.healthy,
-            time: new Date(h.checked_at).toLocaleTimeString(),
+            time: formatLiveTime(h.checked_at),
           }))
       );
     } catch { /* non-fatal */ }

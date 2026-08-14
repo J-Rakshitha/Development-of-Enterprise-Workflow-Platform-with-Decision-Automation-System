@@ -23,5 +23,23 @@ def run_migrations() -> None:
         return
     cfg = Config(str(ini_path))
     cfg.set_main_option("script_location", str(_BACKEND_DIR / "alembic"))
+    try:
+        from alembic.script import ScriptDirectory
+        from alembic.runtime.migration import MigrationContext
+        from sqlalchemy import create_engine
+        from app.core.config import settings
+
+        db_url = settings.DATABASE_URL.replace("+aiosqlite", "")
+        engine = create_engine(db_url)
+        with engine.connect() as conn:
+            context = MigrationContext.configure(conn)
+            current = context.get_current_revision()
+        head = ScriptDirectory.from_config(cfg).get_current_head()
+        if current == head:
+            logger.info("Database already at migration head (%s) — skipping upgrade", head)
+            return
+    except Exception as exc:
+        logger.warning("Could not check migration revision (will run upgrade): %s", exc)
+
     command.upgrade(cfg, "head")
     logger.info("Database migrations applied (head)")

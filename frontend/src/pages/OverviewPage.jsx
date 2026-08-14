@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { GitBranch, ServerCog, Activity, Link2 } from "lucide-react";
 import StatCard from "../components/common/StatCard";
-import ChatHistoryPanel from "../components/common/ChatHistoryPanel";
 import NotificationsPanel from "../components/common/NotificationsPanel";
 import { getStats } from "../services/apiClient";
 import { useLiveSocketContext } from "../context/LiveSocketContext";
@@ -58,7 +57,6 @@ export default function OverviewPage() {
         )}
       </div>
 
-      <ChatHistoryPanel />
       <NotificationsPanel />
     </div>
   );

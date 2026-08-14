@@ -10,6 +10,16 @@ from datetime import datetime
 from sqlalchemy import select
 
 from app.models.dev_collab import FileEditSession, Developer
+from app.core.datetime_utils import parse_github_time
+
+DEMO_DEV_NAMES = frozenset({
+    "Priya Sharma",
+    "Arjun Mehta",
+    "Sneha Reddy",
+    "Karthik Rao",
+})
+
+GITHUB_AVATAR_COLORS = ("#4F8CFF", "#FF6B6B", "#3ECF8E", "#F5A623", "#9B59B6", "#E67E22")
 
 
 class CodeWatchAgent:
@@ -28,12 +38,18 @@ class CodeWatchAgent:
         return dev
 
     @staticmethod
-    async def start_edit_session(db, developer_id: int, file_path: str, function_name: str | None) -> FileEditSession:
+    async def start_edit_session(
+        db,
+        developer_id: int,
+        file_path: str,
+        function_name: str | None,
+        started_at: datetime | None = None,
+    ) -> FileEditSession:
         session = FileEditSession(
             developer_id=developer_id,
             file_path=file_path,
             function_name=function_name,
-            started_at=datetime.utcnow(),
+            started_at=started_at or datetime.utcnow(),
             is_active=True,
         )
         db.add(session)
@@ -52,7 +68,50 @@ class CodeWatchAgent:
             await db.commit()
 
     @staticmethod
-    async def get_active_sessions(db) -> list[FileEditSession]:
+    async def end_all_active_sessions(db) -> int:
         stmt = select(FileEditSession).where(FileEditSession.is_active == True)  # noqa: E712
         result = await db.execute(stmt)
-        return result.scalars().all()
+        sessions = result.scalars().all()
+        for session in sessions:
+            session.is_active = False
+            db.add(session)
+        if sessions:
+            await db.commit()
+        return len(sessions)
+
+    @staticmethod
+    async def sync_live_map_from_github(db, pull_requests: list[dict]) -> int:
+        """Rebuild Live Editing Map from real open PR file lists (GitHub authors)."""
+        await CodeWatchAgent.end_all_active_sessions(db)
+        created = 0
+        for idx, pr in enumerate(pull_requests):
+            color = GITHUB_AVATAR_COLORS[idx % len(GITHUB_AVATAR_COLORS)]
+            dev = await CodeWatchAgent.get_or_create_developer(db, pr["author"], avatar_color=color)
+            branch = pr.get("branch") or "head"
+            # Live Editing Map time = GitHub PR created_at (when PR was raised)
+            pr_time = parse_github_time(pr.get("created_at")) or datetime.utcnow()
+            for file_path in (pr.get("files") or [])[:8]:
+                await CodeWatchAgent.start_edit_session(
+                    db,
+                    developer_id=dev.id,
+                    file_path=file_path,
+                    function_name=f"PR #{pr['number']} · {branch}",
+                    started_at=pr_time,
+                )
+                created += 1
+        return created
+
+    @staticmethod
+    async def get_active_sessions(db, github_only: bool = True) -> list[FileEditSession]:
+        stmt = select(FileEditSession).where(FileEditSession.is_active == True)  # noqa: E712
+        result = await db.execute(stmt)
+        sessions = result.scalars().all()
+        if not github_only:
+            return sessions
+        filtered = []
+        for session in sessions:
+            dev = await db.get(Developer, session.developer_id)
+            if dev and dev.name in DEMO_DEV_NAMES:
+                continue
+            filtered.append(session)
+        return filtered

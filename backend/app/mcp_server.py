@@ -17,9 +17,6 @@ from app.core.database import AsyncSessionLocal
 from app.agents.tools import tool_handlers  # noqa: F401 — populates registry
 from app.agents.tools.tool_registry import list_tools_public
 from app.agents.tools.tool_executor_agent import ToolExecutorAgent
-from app.agents.dev_collab.github_integration_agent import GitHubIntegrationAgent
-from app.agents.dev_collab.conflict_prediction_agent import ConflictPredictionAgent
-from app.agents.dev_collab.code_watch_agent import CodeWatchAgent
 from app.agents.aiops.server_monitor_agent import ServerMonitorAgent
 from app.services.monitoring_scheduler import get_monitor_targets
 from app.core.config import settings
@@ -111,30 +108,41 @@ async def check_service_health(service_name: str | None = None) -> str:
 
 @mcp.tool()
 async def sync_github_conflicts() -> str:
-    """Fetch live open PRs from the configured GitHub repo and detect real conflicts."""
+    """Fetch live open PRs, rebuild Live Editing Map, and detect real conflicts."""
+    from app.services.github_sync_service import run_github_sync
+
     async def _sync(db):
-        result = await GitHubIntegrationAgent.fetch_open_pull_requests()
-        if not result["connected"]:
-            return {"synced": False, "error": result["error"]}
-        found = GitHubIntegrationAgent.find_real_conflicts(result["pull_requests"])
-        created = 0
-        for fc in found:
-            dev_a = await CodeWatchAgent.get_or_create_developer(db, fc["dev_a"], avatar_color="#4F8CFF")
-            dev_b = await CodeWatchAgent.get_or_create_developer(db, fc["dev_b"], avatar_color="#FF6B6B")
-            await ConflictPredictionAgent.create_conflict_event(
-                db,
-                file_path=fc["file_path"],
-                function_name=fc["function_name"],
-                dev_a_id=dev_a.id,
-                dev_b_id=dev_b.id,
-                risk_score=fc["risk_score"],
-                source="github",
-                source_url=fc.get("source_url"),
-            )
-            created += 1
-        return {"synced": True, "pull_requests_checked": len(result["pull_requests"]), "conflicts_found": created}
+        return await run_github_sync(db, trigger="mcp")
 
     result = await _with_db(_sync)
+    return json.dumps(result, default=str)
+
+
+@mcp.tool()
+async def list_open_prs() -> str:
+    """List open pull requests from the configured GitHub repository."""
+    from app.agents.tools.tool_handlers import handler_list_open_prs
+    result = await _with_db(lambda db: handler_list_open_prs(db))
+    return json.dumps(result, default=str)
+
+
+@mcp.tool()
+async def get_pr_diff(pr_number: int) -> str:
+    """Fetch file-level diff summary for a GitHub pull request."""
+    from app.agents.tools.tool_handlers import handler_get_pr_diff
+    result = await _with_db(lambda db: handler_get_pr_diff(db, pr_number=pr_number))
+    return json.dumps(result, default=str)
+
+
+@mcp.tool()
+async def sync_github_repo_full() -> str:
+    """Full GitHub sync — live map + conflict detection."""
+    from app.services.github_sync_service import run_github_sync
+
+    async def _run(db):
+        return await run_github_sync(db, trigger="mcp")
+
+    result = await _with_db(_run)
     return json.dumps(result, default=str)
 
 

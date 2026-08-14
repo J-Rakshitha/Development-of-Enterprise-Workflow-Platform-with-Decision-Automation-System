@@ -4,6 +4,23 @@ These functions are passed into HybridAIClient.reason() as `fallback_fn`
 so the system keeps working (with slightly less "smart" wording)
 even when the LLM API is unreachable.
 """
+import random
+
+# Distinct cause templates keyed by dominant live metric (enterprise, not demo copy)
+_POOL_CAUSES = (
+    "connection pool exhaustion — unreleased connections or slow queries are starving new requests",
+    "database connection pool is saturated — acquiring new connections is blocking under load",
+)
+_ERROR_CAUSES = (
+    "elevated error rate from a failing dependency after a recent change",
+    "elevated error rate — unhandled exception path cascading after a recent deploy",
+)
+_LATENCY_CAUSES = (
+    "elevated latency under load — requests are queuing behind a slow downstream DB or API",
+    "request queue buildup — thread/worker saturation behind a slow dependency",
+)
+
+_last_cause_text: str | None = None
 
 
 def fallback_conflict_suggestion(dev_a: str, dev_b: str, file_path: str, function_name: str) -> str:
@@ -14,17 +31,79 @@ def fallback_conflict_suggestion(dev_a: str, dev_b: str, file_path: str, functio
     )
 
 
-def fallback_root_cause(service_name: str, error_signature: str) -> str:
-    known_map = {
-        "timeout": "Likely cause: downstream dependency (DB/API) is slow or unresponsive, causing request timeouts.",
-        "memory": "Likely cause: memory leak or insufficient memory allocation for the service.",
-        "connection_pool": "Likely cause: database connection pool exhaustion, possibly from an unoptimized query or traffic spike.",
-        "5xx": "Likely cause: unhandled exception in a recent deployment causing server errors.",
+def _pick_cause(templates: tuple[str, ...]) -> str:
+    """Prefer a different sentence than the previous incident when alternatives exist."""
+    global _last_cause_text
+    options = list(templates)
+    if _last_cause_text and len(options) > 1:
+        options = [t for t in options if t != _last_cause_text]
+    choice = random.choice(options)
+    _last_cause_text = choice
+    return choice
+
+
+def _dominant_cause_from_metrics(metrics: dict, error_signature: str) -> str:
+    """Pick root-cause wording from the highest live metric, with template variety."""
+    pool = float(metrics.get("db_pool_usage_pct") or 0)
+    err = float(metrics.get("error_rate_pct") or 0)
+    latency = float(metrics.get("response_time_ms") or 0)
+    latency_score = min(100.0, latency / 100.0)
+    sig = (error_signature or "").lower()
+
+    scores = {
+        "pool": pool,
+        "error": err,
+        "latency": latency_score,
     }
-    for key, explanation in known_map.items():
-        if key in error_signature.lower():
-            return f"[{service_name}] {explanation}"
-    return f"[{service_name}] Anomaly detected ({error_signature}). Recommend manual log inspection — no known pattern matched."
+    # Tie-break using error signature hints when present
+    if "connection_pool" in sig or "db_pool" in sig:
+        scores["pool"] += 0.5
+    if "high_error_rate" in sig or "error_rate" in sig:
+        scores["error"] += 0.5
+    if "high_response_time" in sig or "latency" in sig:
+        scores["latency"] += 0.5
+
+    dominant = max(scores, key=scores.get)
+
+    if dominant == "pool":
+        return _pick_cause(_POOL_CAUSES)
+    if dominant == "error":
+        return _pick_cause(_ERROR_CAUSES)
+    return _pick_cause(_LATENCY_CAUSES)
+
+
+def fallback_root_cause(
+    service_name: str,
+    error_signature: str,
+    raw_metrics: dict | None = None,
+    triggered_by: str | None = None,
+) -> str:
+    from datetime import datetime, timezone
+
+    metrics = raw_metrics or {}
+    who = (triggered_by or "System").strip() or "System"
+    pool = metrics.get("db_pool_usage_pct")
+    err = metrics.get("error_rate_pct")
+    latency = metrics.get("response_time_ms")
+    users = metrics.get("affected_users_pct")
+    observed_at = datetime.now(timezone.utc).strftime("%H:%M:%S UTC")
+
+    explanation = _dominant_cause_from_metrics(metrics, error_signature)
+
+    bits = []
+    if err is not None:
+        bits.append(f"error_rate {err}%")
+    if pool is not None:
+        bits.append(f"DB pool {pool}%")
+    if latency is not None:
+        bits.append(f"latency {latency}ms")
+    if users is not None:
+        bits.append(f"affected users {users}%")
+    metric_clause = f" Live metrics at {observed_at}: {', '.join(bits)}." if bits else f" Observed at {observed_at}."
+    return (
+        f"[{service_name}] Likely cause: {explanation}.{metric_clause} "
+        f"Triggered by {who}."
+    )
 
 
 def fallback_severity(service_name: str, error_rate: float, affected_users_pct: float) -> str:
@@ -36,9 +115,10 @@ def fallback_severity(service_name: str, error_rate: float, affected_users_pct: 
 
 
 def fallback_remediation_action(root_cause_hint: str) -> str:
-    if "connection_pool" in root_cause_hint.lower() or "timeout" in root_cause_hint.lower():
+    hint = root_cause_hint.lower()
+    if "connection_pool" in hint or "connection pool" in hint or "pool exhaustion" in hint or "timeout" in hint:
         return "restart_service"
-    if "memory" in root_cause_hint.lower():
+    if "memory" in hint or "cache" in hint:
         return "clear_cache"
     return "notify_oncall_engineer"
 

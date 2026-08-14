@@ -17,6 +17,21 @@ Built for: Infosys Springboard Virtual Internship 7.0 — Batch 1.
 
 **GitHub:** [Development-of-Enterprise-Workflow-Platform-with-Decision-Automation-System](https://github.com/J-Rakshitha/Development-of-Enterprise-Workflow-Platform-with-Decision-Automation-System)
 
+**Status (August 2026):** Milestones **1–4 complete**. The live product uses **JWT users**, **real GitHub PRs**, **real observability ingest/webhooks**, and **Coordinator linking** — not hardcoded demo cards.
+
+---
+
+## Milestones 1–4 (Complete)
+
+| Milestone | Focus (Weeks) | Status |
+|-----------|---------------|--------|
+| **1** | Project setup, FastAPI + React dashboard, Hybrid AI (Gemini + rules), core Dev-Collab + AIOps agents | ✅ Complete |
+| **2** | Tool & system integration — Tool Registry, Selector, Executor, MCP, GitHub/monitoring connectors | ✅ Complete |
+| **3** | Multi-agent coordination, shared memory, explainable decision log, cross-module incident↔commit link | ✅ Complete |
+| **4** | Workflow orchestration, HITL resume, SLA watchdog, monitoring dashboards, Docker, CI, production guards | ✅ Complete |
+
+Enterprise extensions on top of M1–M4 (also complete): Phases **A–D**, **E1–E6**, and **live GitHub + live AIOps** (no fake incident feed).
+
 ---
 
 ## Architecture
@@ -87,9 +102,13 @@ to rule-based logic. The demo NEVER crashes.
 | **B** | Real Server Monitoring — background HTTP probes (own backend + external API) | ✅ Complete |
 | **C** | Multi-user Login — JWT auth with demo users | ✅ Complete |
 | **D** | MCP Layer — industry-standard tool exposure via Model Context Protocol | ✅ Complete |
+| **M1** | Core platform — agents, Hybrid AI, REST + WebSocket dashboard | ✅ Complete |
+| **M2** | Tool integration — 8 enterprise tools, intelligent selection, MCP | ✅ Complete |
 | **M3** | Agent Coordination & Memory — specialized agents, shared memory, cross-module linking | ✅ Complete |
+| **M4** | Workflow automation, SLA watchdog, monitoring UI, Docker, CI | ✅ Complete |
 | **E1–E5** | Enterprise Intelligence — AST Discovery, Semantic Analysis, Synthesizer, Quality, RAG Search | ✅ Complete |
 | **E6** | Enterprise Workflow — HITL, mandatory auth, per-user GitHub repo, chat sessions | ✅ Complete |
+| **Live ops** | Real GitHub PR conflicts + real AIOps ingest/webhook (JWT `triggered_by`, no fake cards) | ✅ Complete |
 
 ### Enterprise Workflow (E6) — Evaluator Feedback ✅
 
@@ -100,11 +119,28 @@ Sir feedback implemented for production-style user workflows:
 | **Mandatory Sign In** | Branded full-screen login page first → Overview dashboard after auth |
 | **Human-in-the-Loop (HITL)** | AI suggests resolution → user **Approve / Reject / Resolve Later** — no auto-resolve |
 | **Undo** | Revert last conflict action (reject, approve, defer) |
-| **User tracking** | Conflicts show **"Resolved by Priya Sharma"** — per signed-in user |
+| **User tracking** | Conflicts show **"Resolved by [signed-in user]"** — JWT `full_name` |
 | **Per-user GitHub repo** | Submit repo URL → auto-scan → recheck (`UserRepo` table) |
 | **Chat history** | ChatGPT-style sessions on Overview with follow-up Q&A |
 | **Decision Trail removed from UI** | Agent log hidden from users; Coordinator still logs server-side |
 | **Notification Agent** | Background service (Slack/email/WebSocket) — not a user-facing agent |
+
+### Live enterprise (current product behaviour)
+
+Real-time company use — signed-in people and live GitHub/observability, not seed demo names on the dashboard.
+
+| Area | What is live |
+|------|----------------|
+| **Dev-Collab** | Open PRs on the configured repo (`GITHUB_REPO_OWNER` / `GITHUB_REPO_NAME`) → predicted conflicts (2+ PRs, same file) and confirmed GitHub `dirty` merges. Live Editing Map from GitHub authors. Simulate Conflict is **hidden** when `SIMULATE_UI_ENABLED=false`. |
+| **AIOps ingest** | **Send Real Test Metrics** — random service from a pool (`checkout-service`, `payment-service`, `auth-service`, `inventory-service`, `notification-service`, `order-service`) + realistic metric ranges. Each click **creates a new incident** (history kept). `triggered_by` = JWT `full_name`. Badge: **INGEST**. |
+| **AIOps webhook** | `POST /api/incidents/alert-webhook` — Grafana/Prometheus style; secret header in production. Badge: **WEBHOOK**. |
+| **AIOps monitoring** | Background HTTP probes of registered health-check targets (separate from the test-incident service pool). Badge: **MONITORING**. Simulate incidents stay **hidden** from the feed. |
+| **Root cause** | Wording follows the **worst live metric** (pool / error rate / latency) and the actual `service_name`. Six templates; consecutive clicks are not identical copy. |
+| **Coordinator link** | Incident ↔ commit **only** when the commit file matches the service (e.g. `checkout.py` ↔ `checkout-service`). No weak “any recent conflict PR” fallback. |
+| **GitHub issue chips** | Only issues from the **configured repo**. Public chaos/o11yParty search hits are discarded. |
+| **Team Notifications** | `ops:<person>` for real JWT users. Seed demo names (Priya Sharma, Arjun Mehta, …) and generic “Backend Engineering Team” labels are hidden. |
+| **SLA** | Live countdown; missed SLA shows the miss time (does not keep growing). Generic escalation team name is not shown on cards. |
+| **Timestamps** | UTC stored, displayed in local time. |
 
 **HITL conflict flow:**
 ```
@@ -198,9 +234,17 @@ Features implemented locally and tested — **deploy pending** (Render/Vercel).
 
 **Migration:** `007_monitored_services.py`
 
-**Local verify:** `python live_smoke_test.py` → **9/9 PASS** | `python -m pytest tests -q` → **74 passed**
+**Local verify:** `python live_smoke_test.py` → **9/9 PASS** | `python -m pytest tests -q` (backend) → **95 passed**
 
 **Redis (optional):** Comment out `REDIS_URL` in local `.env` — memory queue used. At deploy, add Render managed Redis URL.
+
+### Milestone 1 — Core Platform (Weeks 1–2) ✅
+
+FastAPI backend, React dashboard, SQLite, Hybrid AI (Gemini + rule fallback), WebSocket `/ws/live`, and the first Dev-Collab + AIOps agent pipelines.
+
+### Milestone 2 — Tool & System Integration (Weeks 3–4) ✅
+
+Tool Registry, Tool Selector, Tool Executor, GitHub/monitoring connectors, and MCP (`python -m app.mcp_server`). Eight registered enterprise tools with measured accuracy.
 
 ### Milestone 3 — Agent Coordination & Memory Systems (Weeks 5–6) ✅
 
@@ -228,7 +272,7 @@ single-purpose scripts.
 | **Severity Agent** | AIOps | Classifies P1 / P2 / P3 with SLA deadlines |
 | **Tool Selector Agent** | AIOps | Picks the best remediation tool for the situation |
 | **Tool Executor Agent** | AIOps | Invokes tools with exception-safe execution |
-| **External Lookup Agent** | AIOps | Searches GitHub public issues for known patterns |
+| **External Lookup Agent** | AIOps | Related issues in the **configured GitHub repo only** (chaos/public noise filtered) |
 | **Notification Agent** | Both | Background service — Slack/email/WebSocket alerts (not user-facing) |
 | **Memory Agent** | Both | Background service — short/long-term shared memory (not user-facing) |
 | **Coordinator Agent** | Both | Logs all decisions + links Dev conflicts → Production incidents |
@@ -274,7 +318,8 @@ Repeated patterns reinforce entries (`success_count` increments).
 | **Dev-Collaboration** | Predicted Conflicts (HITL) | Approve / Reject / Resolve Later / Undo + user name on resolve |
 | **Dev-Collaboration** | Recent Commits | Created only after user **Approve** — feeds cross-module linking |
 | **Dev-Collaboration** | Real GitHub Integration | Live PR sync from configured org repo |
-| **AIOps** | Live Incident Feed | Severity, root cause, linked commit, **SLA countdown**, escalation status |
+| **AIOps** | Real Observability | Monitoring ON, registered health-check targets, alert webhook URL, **Send Real Test Metrics** |
+| **AIOps** | Live Incident Feed | Source badge INGEST/WEBHOOK/MONITORING, JWT triggered_by, metric root cause, SLA, history cards |
 | **AIOps** | Tool Integration Panel | Registered tools + measured execution accuracy |
 | **All pages** | Header — Live indicator | Green dot = WebSocket connected (real-time) |
 | **All pages** | Header — Simulate API Failure | Toggle to prove hybrid LLM fallback live on stage |
@@ -302,21 +347,26 @@ Repeated patterns reinforce entries (`success_count` increments).
 → After **Approve**: RESOLVED + "Resolved by [User Name]" + commit
 ```
 
-### 5-Minute Live Demo Script (Evaluator Feedback)
+### 5-Minute Live Demo Script (Evaluator)
+
+Use **real GitHub accounts** (Asad / Prem / Rakshitha / Lavanya) and JWT login — not seed demo names on the live feed.
 
 | Step | Page | Action | What to show in UI |
 |------|------|--------|---------------------|
-| 1 | Login | Sign in as **Priya Sharma** | Branded login page → Overview dashboard |
-| 2 | Dev-Collaboration | **Submit GitHub repo URL** | Connected repo + scan results |
-| 3 | Dev-Collaboration | **Simulate Conflict** → **Get AI Suggestion** | "Awaiting Approval" — NOT auto-resolved |
-| 4 | Dev-Collaboration | Click **Approve** | "Resolved by Priya Sharma" + Recent Commits |
-| 5 | Overview | **Chat History** — ask a follow-up question | Same session continues |
-| 6 | AIOps | **Simulate Incident** | P1 card + SLA countdown + notifications |
-| 7 | Overview | Check stats | Linked Incidents > 0 + Team Notifications |
+| 1 | Login | Sign in as a **real user** (JWT) | Branded login → Overview |
+| 2 | Dev-Collaboration | **Sync GitHub** (2+ open PRs on the same file, e.g. `app.py`) | Live Editing Map + predicted conflict cards |
+| 3 | Dev-Collaboration | **Get AI Suggestion** → **Approve** | HITL — not auto-resolved; “Resolved by [user]” |
+| 4 | Overview | Chat History — follow-up question | Same session continues |
+| 5 | AIOps | **Send Real Test Metrics** (click twice) | Two **new** cards, different services/metrics, INGEST, triggered by JWT user |
+| 6 | Overview | Team Notifications | `ops:<person>` — no Priya Sharma / Backend Engineering Team |
+| 7 | Optional | Grafana POST to `/api/incidents/alert-webhook` | WEBHOOK badge on a real incident |
+
+**GitHub red merge conflict** (optional, separate from the app’s predicted-conflict cards): merge one PR into `main`, then refresh the other PRs.
 
 **Talking points for evaluators:**
 > "Human-in-the-Loop — AI suggests, user approves. Every action tracked per signed-in user."
-> "Notification Agent runs as a background service — users see alerts, not agent internals."
+> "Conflicts come from live GitHub PRs. Incidents come from live metrics ingest — not hardcoded checkout-service."
+> "Coordinator links an incident to a commit only when the file matches the service."
 
 ### What's Real vs Demo (Honest Architecture Notes)
 
@@ -333,19 +383,20 @@ Repeated patterns reinforce entries (`success_count` increments).
 | Hybrid LLM (Gemini) | ✅ Real when API key set | Rule-based fallback always available |
 | Slack / Discord / Gmail / Teams alerts | ✅ Real when `.env` webhooks/SMTP set | |
 | Team Notifications panel | ✅ Real DB records, live WebSocket refresh | |
-| Alembic DB migrations | ✅ 001–007 (SLA, enterprise, HITL, workflow, monitored_services) | |
-| Production simulate guard | ✅ Hidden in production — dev-only demo buttons | |
+| Alembic DB migrations | ✅ 001–008 (SLA, enterprise, HITL, workflow, monitored_services, incident source) | |
+| Production simulate guard | ✅ Hidden in production — GitHub sync + ingest used instead | |
 | Admin monitored services UI | ✅ Add/edit probe targets without `.env` restart | |
 | Rate limiting | ✅ Auth + public API abuse protection | |
 | Background job queue | ✅ Async workflows — Redis optional at deploy | |
 | CI/CD | ✅ GitHub Actions workflow | |
 | Enterprise E1–E5 pipeline | ✅ Real AST + semantic + quality + RAG | |
-| **Simulate Conflict** button | | ⚠️ Demo trigger (random file/function) |
-| **Simulate Incident** button | | ⚠️ Demo trigger (random metrics) |
-| Runbook tools (restart/clear cache) | | ⚠️ Simulated actions (safe for demo) |
-
-Demo buttons exist so the presentation never depends on external uptime.
-In production, replace them with real metric pipelines and GitHub webhooks.
+| AIOps Send Real Test Metrics | ✅ Live ingest — random service + metrics, JWT triggered_by, new card per click | |
+| Metrics alert webhook | ✅ Grafana/Prometheus POST + shared secret | |
+| Incident source badges | ✅ INGEST / WEBHOOK / MONITORING (`simulate` hidden from feed) | |
+| Strict Coordinator link | ✅ File keyword must match `service_name` | |
+| External GitHub refs | ✅ Configured repo only | |
+| **Simulate Conflict / Incident** APIs | | ⚠️ Pytest / optional; UI hidden when simulate flags off |
+| Runbook tools (restart/clear cache) | | ⚠️ Simulated actions unless a real probe confirms recovery |
 
 ### Phase A — Real GitHub Integration
 - Connects to a real GitHub repo via REST API
@@ -365,7 +416,8 @@ In production, replace them with real metric pipelines and GitHub webhooks.
 ### Phase C — Multi-user Login (Mandatory)
 - JWT-based authentication — **sign in required** before dashboard
 - Branded full-screen **LoginPage** → Overview after successful auth
-- Demo users seeded on startup:
+- Seed accounts exist for local pytest. **Evaluator demo:** register real people (Asad, Prem, Rakshitha, Lavanya). Seed names are hidden from Team Notifications.
+- Demo users seeded on startup (dev/pytest):
 
 | Email | Password | Role |
 |-------|----------|------|
@@ -383,7 +435,7 @@ In production, replace them with real metric pipelines and GitHub webhooks.
 
 ### Multi-Channel Notifications (Notification Agent)
 
-One simulate action can alert **Slack + Discord + Gmail + live dashboard** in parallel:
+A live ingest, GitHub sync, or (optional) simulate action can alert **Slack + Discord + Gmail + live dashboard** in parallel:
 
 | Channel | `.env` variable | Setup |
 |---------|-----------------|-------|
@@ -443,11 +495,12 @@ Development-of-Enterprise-Workflow-Platform-with-Decision-Automation-System/
 │   │   ├── middleware/                     # rate_limit middleware
 │   │   ├── routers/                        # auth, chat, monitoring, incidents, dev-collab, system, admin, workflows
 │   │   └── services/                       # hitl, repo, chat, github_sync, job_queue, monitored_services
-│   ├── alembic/versions/                   # 001–007 (SLA, enterprise, HITL, workflow, monitored_services)
+│   ├── alembic/versions/                   # 001–008 (incl. incident source / triggered_by)
 │   ├── tests/
 │   │   ├── test_milestone4.py              # Workflow orchestration + monitoring
 │   │   ├── test_pre_deploy.py              # Production toggle, rate limit, monitored services
-│   │   └── ...                             # 74 tests total
+│   │   ├── test_aiops_enterprise.py        # Ingest, webhook, simulate hidden, history cards
+│   │   └── ...                             # 95 tests total
 │   ├── live_smoke_test.py                  # Live backend smoke — 9 checks
 │   ├── run.ps1                             # Windows one-click backend start
 │   ├── requirements.txt
@@ -512,6 +565,11 @@ GITHUB_REPO_OWNER=your-username
 GITHUB_REPO_NAME=your-repo-name
 GITHUB_WEBHOOK_SECRET=your_webhook_secret
 PUBLIC_BACKEND_URL=http://localhost:8000
+
+# AIOps observability webhook (Grafana/Prometheus)
+METRICS_WEBHOOK_SECRET=your_metrics_webhook_secret
+SIMULATE_UI_ENABLED=False
+MONITORING_UI_ENABLED=False
 
 # Notifications — Gmail SMTP (Google App Password, not normal password)
 NOTIFICATION_EMAIL_ENABLED=True
@@ -582,7 +640,7 @@ python -m pytest -v
 
 # Or from backend directory
 cd backend
-python -m pytest -v                  # Full suite — 74 tests
+python -m pytest -v                  # Full suite — 95 tests
 python -m pytest tests/test_pre_deploy.py -v   # Pre-deploy features — 5 tests
 python -m pytest tests/test_milestone4.py -v   # Milestone 4 — 8 tests
 python -m pytest tests/test_enterprise_integrations.py -v   # SLA, webhook, Slack, Discord, Gmail — 14 tests
@@ -624,7 +682,7 @@ The backend recreates all tables automatically on startup.
 | Backend health | http://localhost:8000/api/system/health | `{"status":"ok"}` |
 | API docs | http://localhost:8000/docs | Swagger UI loads |
 | Dashboard | http://localhost:5173 | Branded login → Overview after sign in |
-| Full test suite | `python -m pytest -v` (project root or backend) | **74 passed** |
+| Full test suite | `python -m pytest -v` (project root or backend) | **95 passed** |
 | Live smoke test | `python live_smoke_test.py` (backend running) | **9/9 PASS** |
 
 ---
@@ -714,9 +772,11 @@ The backend recreates all tables automatically on startup.
 ### AIOps & Tools
 | Method | Path | Purpose |
 |--------|------|---------|
-| POST | `/api/incidents/ingest-metrics` | Feed metrics through agent pipeline |
-| POST | `/api/incidents/simulate` | Demo one-click incident |
-| GET | `/api/incidents/` | List incidents |
+| POST | `/api/incidents/ingest-metrics` | Live metrics → pipeline (`source=ingest`, JWT `triggered_by`) |
+| GET | `/api/incidents/observability/status` | Webhook URL, monitoring flag, registered health-check count |
+| POST | `/api/incidents/alert-webhook` | Grafana/Prometheus alert ingest (`source=webhook`) |
+| POST | `/api/incidents/simulate` | Pytest/demo only — **hidden from live feed** |
+| GET | `/api/incidents/` | Live feed (simulate filtered; history kept per trigger) |
 | GET | `/api/tools/` | List registered enterprise tools |
 | POST | `/api/tools/select-and-execute` | Intelligent tool selection |
 | GET | `/api/tools/accuracy` | Tool execution accuracy stats |
@@ -744,7 +804,7 @@ The backend recreates all tables automatically on startup.
 | Human-in-the-Loop workflow | Approve/Reject/Undo on conflicts — user has final authority |
 | Per-user GitHub repo | Repo submit + auto-scan per signed-in user |
 | ChatGPT-style chat history | Chat sessions with follow-up Q&A on Overview |
-| Testing | **74 pytest tests** + live smoke test — `python -m pytest -v` |
+| Testing | **95 pytest tests** + live smoke test — `python -m pytest -v` |
 
 ---
 
@@ -769,9 +829,10 @@ Repo: [Development-of-Enterprise-Workflow-Platform-with-Decision-Automation-Syst
 - [x] **Enterprise E6** — HITL, mandatory auth, branded login, chat history, per-user repo
 - [x] **Milestone 4** — Workflow orchestration, monitoring dashboard, SLA watchdog, Docker
 - [x] **Pre-deploy (M4 extension)** — Production simulate hide, admin monitored services, rate limiting, job queue, CI
-- [x] **74 automated tests** + live smoke test (9/9)
+- [x] **95 automated tests** + live smoke test (9/9)
+- [x] **Live GitHub + live AIOps** — PR sync, ingest/webhook, JWT triggered_by, strict Coordinator link
 - [ ] Render/Vercel deployment
-- [ ] Final demo rehearsal
+- [ ] Final evaluator demo (real GitHub users + Send Real Test Metrics)
 
 ---
 

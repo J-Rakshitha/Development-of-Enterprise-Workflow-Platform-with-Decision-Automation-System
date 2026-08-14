@@ -6,6 +6,7 @@ import { AuthProvider, useAuth } from "./context/AuthContext";
 import { AppConfigProvider } from "./context/AppConfigContext";
 import { LiveSocketProvider, useLiveSocketContext } from "./context/LiveSocketContext";
 import Header from "./components/layout/Header";
+import ChatHistoryPanel from "./components/common/ChatHistoryPanel";
 
 import LoginPage from "./pages/LoginPage";
 import OverviewPage from "./pages/OverviewPage";
@@ -32,18 +33,23 @@ function AppShell() {
   }
 
   return (
-    <div className="min-h-screen bg-base-bg text-ink-primary">
+    <div className="min-h-screen bg-base-bg text-ink-primary flex flex-col">
       <Header connected={connected} />
-      <main>
-        <Routes>
-          <Route path="/" element={<OverviewPage />} />
-          <Route path="/dev-collab" element={<DevCollabPage />} />
-          <Route path="/aiops" element={<AIOpsPage />} />
-          <Route path="/monitoring" element={<MonitoringPage />} />
-          <Route path="/workflows" element={<WorkflowsPage />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </main>
+      <div className="flex flex-1 min-h-0">
+        <aside className="w-56 shrink-0 hidden md:flex flex-col min-h-0">
+          <ChatHistoryPanel variant="sidebar" />
+        </aside>
+        <main className="flex-1 overflow-y-auto min-h-0">
+          <Routes>
+            <Route path="/" element={<OverviewPage />} />
+            <Route path="/dev-collab" element={<DevCollabPage />} />
+            <Route path="/aiops" element={<AIOpsPage />} />
+            <Route path="/monitoring" element={<MonitoringPage />} />
+            <Route path="/workflows" element={<WorkflowsPage />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </main>
+      </div>
     </div>
   );
 }

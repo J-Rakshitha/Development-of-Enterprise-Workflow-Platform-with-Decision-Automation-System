@@ -1,11 +1,12 @@
-# Start the FastAPI backend (uses venv at C:\Users\akula\venv\coord-engine)
+# Start the FastAPI backend
 $VenvPython = "C:\Users\akula\venv\coord-engine\Scripts\python.exe"
-
 if (-not (Test-Path $VenvPython)) {
-    Write-Host "Creating venv at C:\Users\akula\venv\coord-engine ..."
-    python -m venv "C:\Users\akula\venv\coord-engine"
-    & $VenvPython -m pip install --upgrade pip
-    & $VenvPython -m pip install -r requirements.txt
+    $VenvPython = (Get-Command python -ErrorAction SilentlyContinue).Source
+    if (-not $VenvPython) {
+        Write-Host "Python not found. Install Python 3.11+ and retry."
+        exit 1
+    }
+    Write-Host "Using system Python: $VenvPython"
 }
 
 # Kill any stale/hung server still holding port 8000

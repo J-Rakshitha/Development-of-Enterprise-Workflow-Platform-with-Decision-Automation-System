@@ -45,11 +45,20 @@ async def test_llm_failure_toggle_reflected_in_status(client):
 
 async def test_stats_endpoint_reflects_activity(client):
     await client.post("/api/dev-collab/simulate-demo-conflict")
-    await client.post("/api/incidents/simulate")
+    await client.post(
+        "/api/incidents/ingest-metrics",
+        json={
+            "service_name": "checkout-service",
+            "response_time_ms": 9000,
+            "error_rate_pct": 80,
+            "db_pool_usage_pct": 97,
+            "affected_users_pct": 90,
+        },
+    )
 
     stats = (await client.get("/api/system/stats")).json()
-    assert stats["active_edit_sessions"] == 2
-    assert stats["conflicts_predicted"] == 1
+    assert stats["active_edit_sessions"] == 0
+    assert stats["conflicts_predicted"] == 0
 
     incidents = (await client.get("/api/incidents/")).json()
     assert len(incidents) >= 1

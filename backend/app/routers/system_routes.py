@@ -14,11 +14,19 @@ from app.core.database import get_db
 from app.core.deps import get_current_user
 from app.models.user import User
 from app.models.incident import AgentDecisionLog, Incident
-from app.models.dev_collab import FileEditSession, ConflictEvent
+from app.models.dev_collab import ConflictEvent
+from app.agents.dev_collab.code_watch_agent import CodeWatchAgent
 from app.agents.llm.llm_client import set_simulated_failure, get_simulated_failure
 from app.agents.memory_agent import MemoryAgent
 from app.agents.notification_agent import NotificationAgent
+from app.services.demo_filters import (
+    count_visible_conflicts,
+    count_visible_linked_incidents,
+    count_visible_open_incidents,
+    is_visible_notification_recipient,
+)
 from app.core.config import settings, simulate_endpoints_enabled
+from app.core.datetime_utils import utc_iso
 
 router = APIRouter(prefix="/api/system", tags=["System"])
 
@@ -170,6 +178,8 @@ async def app_config():
         "env": settings.ENV,
         "production": settings.ENV.strip().lower() == "production",
         "simulate_enabled": simulate_endpoints_enabled(),
+        "simulate_ui_enabled": settings.SIMULATE_UI_ENABLED,
+        "monitoring_ui_enabled": settings.MONITORING_UI_ENABLED,
         "job_queue": get_queue_stats(),
     }
 
@@ -180,16 +190,11 @@ async def get_stats(
     user: User = Depends(get_current_user),
 ):
     """Aggregate counts for the Overview dashboard's stat cards."""
-    active_sessions = await db.scalar(
-        select(func.count()).select_from(FileEditSession).where(FileEditSession.is_active == True)  # noqa: E712
-    )
-    conflicts_predicted = await db.scalar(select(func.count()).select_from(ConflictEvent))
-    open_incidents = await db.scalar(
-        select(func.count()).select_from(Incident).where(Incident.status.in_(["open", "escalated"]))
-    )
-    linked_incidents = await db.scalar(
-        select(func.count()).select_from(Incident).where(Incident.linked_commit_id.isnot(None))
-    )
+    github_sessions = await CodeWatchAgent.get_active_sessions(db, github_only=True)
+    active_sessions = len(github_sessions)
+    conflicts_predicted = await count_visible_conflicts(db)
+    open_incidents = await count_visible_open_incidents(db)
+    linked_incidents = await count_visible_linked_incidents(db)
     return {
         "active_edit_sessions": active_sessions or 0,
         "conflicts_predicted": conflicts_predicted or 0,
@@ -220,29 +225,54 @@ async def get_knowledge_base(
     ]
 
 
+def _is_generic_oncall_label(recipient: str | None) -> bool:
+    if not recipient:
+        return False
+    label = recipient.split(":", 1)[-1].strip().lower().replace("_", " ").replace("-", " ")
+    return label in ("on call", "oncall")
+
+
 @router.get("/notifications")
 async def get_notifications(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """Team notification log — WebSocket + email delivery records from the Notification Agent."""
+    """Team notification log — demo @infosys.com / team-label alerts hidden; person ops:* and github:* shown."""
     entries = await NotificationAgent.list_recent(db)
-    return [
-        {
+    out = []
+    for n in entries:
+        recipient = n.recipient
+        # Old rows used ops:On Call — resolve to incident person (triggered_by only)
+        if _is_generic_oncall_label(recipient) and n.related_entity_id:
+            incident = await db.get(Incident, n.related_entity_id)
+            who = (incident.triggered_by or "").strip() if incident else ""
+            if who and who.lower() not in (
+                "on-call", "on call", "oncall",
+                "backend engineering team", "incident response", "sla watchdog",
+            ):
+                recipient = f"ops:{who}"
+            else:
+                continue  # no person — hide generic on-call card
+
+        if not is_visible_notification_recipient(recipient):
+            continue
+
+        created_iso = utc_iso(n.created_at)
+
+        out.append({
             "id": n.id,
             "channel": n.channel,
             "event_type": n.event_type,
             "module": n.module,
-            "recipient": n.recipient,
+            "recipient": recipient,
             "subject": n.subject,
             "message": n.message,
             "related_entity_id": n.related_entity_id,
             "delivered": n.delivered,
             "acknowledged": n.acknowledged,
-            "created_at": n.created_at,
-        }
-        for n in entries
-    ]
+            "created_at": created_iso,
+        })
+    return out
 
 
 @router.get("/knowledge-base/search")
