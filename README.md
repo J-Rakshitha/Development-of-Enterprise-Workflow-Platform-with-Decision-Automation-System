@@ -838,4 +838,6 @@ Repo: [Development-of-Enterprise-Workflow-Platform-with-Decision-Automation-Syst
 
 ## License
 
-Built for educational/internship purposes (Infosys Springboard Virtual Internship 7.0).
+This project is released under the **MIT License**. See [`LICENSE`](LICENSE) for the full text.
+
+Built for educational/internship purposes (Infosys Springboard Virtual Internship 7.0). Copyright (c) 2026 J Rakshitha.
