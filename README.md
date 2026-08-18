@@ -17,7 +17,7 @@ Built for: Infosys Springboard Virtual Internship 7.0 — Batch 1.
 
 **GitHub:** [Development-of-Enterprise-Workflow-Platform-with-Decision-Automation-System](https://github.com/J-Rakshitha/Development-of-Enterprise-Workflow-Platform-with-Decision-Automation-System)
 
-**Status (August 2026):** Milestones **1–4 complete**. The live product uses **JWT users**, **real GitHub PRs**, **real observability ingest/webhooks**, and **Coordinator linking** — not hardcoded demo cards.
+**Status (August 2026):** Milestones **1–4 complete**. The live product uses **JWT Sign In / Sign Up**, **real GitHub PRs**, **real observability ingest/webhooks**, and **Coordinator linking** — not hardcoded demo cards. Optional **Grafana + Prometheus** stack is included (`docker-compose.grafana.yml`). **LangSmith is not used.**
 
 ---
 
@@ -88,9 +88,9 @@ flowchart TB
     CO -->|cross-module link| DevCollab
 ```
 
-**Hybrid AI strategy**: every "thinking" agent calls the Gemini API first.
+**Hybrid AI strategy**: every "thinking" agent uses a LangChain `ChatPromptTemplate` and calls Gemini first.
 If the API key is missing, times out, or errors — it automatically falls back
-to rule-based logic. The demo NEVER crashes.
+to rule-based logic. The demo NEVER crashes. **LangSmith is not part of this project** (no tracing dashboard).
 
 ---
 
@@ -116,7 +116,7 @@ Sir feedback implemented for production-style user workflows:
 
 | Feature | What it does |
 |---------|--------------|
-| **Mandatory Sign In** | Branded full-screen login page first → Overview dashboard after auth |
+| **Mandatory Sign In / Sign Up** | Branded full-screen login first → Overview after auth. New users can register. |
 | **Human-in-the-Loop (HITL)** | AI suggests resolution → user **Approve / Reject / Resolve Later** — no auto-resolve |
 | **Undo** | Revert last conflict action (reject, approve, defer) |
 | **User tracking** | Conflicts show **"Resolved by [signed-in user]"** — JWT `full_name` |
@@ -214,7 +214,7 @@ Production-ready workflow orchestration and ops monitoring dashboards.
 
 **Migration:** `004_workflow_orchestration.py` — workflow tables + notification acknowledge
 
-**Deployment:** `Dockerfile` + `docker-compose.yml` for production containerization
+**Deployment:** `Dockerfile` + `docker-compose.yml` for the app. Optional Grafana: `docker-compose.grafana.yml` (Docker Desktop required; app itself does not need Docker).
 
 #### Pre-Deploy Production Readiness (M4 extension) ✅
 
@@ -312,7 +312,7 @@ Repeated patterns reinforce entries (`success_count` increments).
 | **Overview** | Stat cards + Welcome | Active Sessions, Conflicts, Open Incidents, Linked Incidents |
 | **Overview** | Chat History & Long-Term Memory | ChatGPT-style sessions with follow-up Q&A |
 | **Overview** | Team Notifications | Email/WebSocket alerts (live refresh) |
-| **Login** | Branded Sign In page | Full-screen login before dashboard (mandatory) |
+| **Login** | Branded Sign In / Sign Up | Full-screen auth before dashboard (mandatory) |
 | **Dev-Collaboration** | Connect Your GitHub Repository | Per-user repo submit + auto-scan + recheck |
 | **Dev-Collaboration** | Live Editing Map | Real-time developer presence on files/functions |
 | **Dev-Collaboration** | Predicted Conflicts (HITL) | Approve / Reject / Resolve Later / Undo + user name on resolve |
@@ -380,7 +380,9 @@ Use **real GitHub accounts** (Asad / Prem / Rakshitha / Lavanya) and JWT login �
 | HITL approve/reject/undo | ✅ Real — user must approve AI suggestions | |
 | Per-user GitHub repo submit | ✅ Real — `UserRepo` table + scan | |
 | Chat sessions + follow-up | ✅ Real — `ChatSession` / `ChatMessage` tables | |
-| Hybrid LLM (Gemini) | ✅ Real when API key set | Rule-based fallback always available |
+| Hybrid LLM (Gemini) | ✅ Real when API key set — LangChain `ChatPromptTemplate` + google-genai | Rule-based fallback always available |
+| LangSmith tracing | | ❌ **Not used** — no LangSmith project, SDK, or traces |
+| Grafana / Prometheus | ✅ Optional Docker stack (`docker-compose.grafana.yml`) probes `/api/system/health` | App runs without Docker |
 | Slack / Discord / Gmail / Teams alerts | ✅ Real when `.env` webhooks/SMTP set | |
 | Team Notifications panel | ✅ Real DB records, live WebSocket refresh | |
 | Alembic DB migrations | ✅ 001–008 (SLA, enterprise, HITL, workflow, monitored_services, incident source) | |
@@ -460,7 +462,8 @@ Test endpoints: `POST /api/system/test-email`, `POST /api/system/test-discord-we
 | Job Queue | asyncio worker + optional Redis (`REDIS_URL`) with in-memory fallback |
 | CI/CD | GitHub Actions — pytest + frontend build |
 | MCP | `mcp` Python SDK (FastMCP) |
-| LLM | Google Gemini API via **google-genai** SDK (AIza + AQ keys) + rule-based fallback |
+| LLM | LangChain `ChatPromptTemplate` + Google Gemini (`google-genai` / `langchain-google-genai`) + rule-based fallback. **LangSmith is not used.** |
+| Observability (optional) | Grafana 11 + Prometheus + Blackbox exporter (`docker-compose.grafana.yml`) |
 | Frontend | React 18 + Vite, Tailwind CSS, React Router, lucide-react |
 | Deployment | Backend → Render, Frontend → Vercel |
 
@@ -472,6 +475,9 @@ Test endpoints: `POST /api/system/test-email`, `POST /api/system/test-discord-we
 |------|---------|
 | **8000** | Backend API + WebSocket (`ws://localhost:8000/ws/live`) |
 | **5173** | Frontend UI (dashboard) |
+| **3000** | Grafana (optional Docker stack — admin / admin) |
+| **9090** | Prometheus (optional) |
+| **9115** | Blackbox exporter (optional) |
 
 ---
 
@@ -519,7 +525,12 @@ Development-of-Enterprise-Workflow-Platform-with-Decision-Automation-System/
 │   │   │   └── ...                         # AuthContext, LiveSocketContext, ThemeContext
 │   ├── run.ps1                             # Windows one-click frontend start
 │   └── package.json
-├── .github/workflows/ci.yml                # GitHub Actions — pytest + frontend build
+├── observability/                            # Grafana dashboards + Prometheus/blackbox config
+├── docker-compose.yml                        # App containerization
+├── docker-compose.grafana.yml                # Optional Grafana + Prometheus (app stays on host)
+├── docs/Milestone_Documents/                 # Filled Agile / Defect / Unit Test + eval PPT
+├── LICENSE                                   # MIT
+├── .github/workflows/ci.yml                  # GitHub Actions — pytest + frontend build
 └── README.md
 ```
 
@@ -541,7 +552,9 @@ cd frontend
 .\run.ps1
 ```
 
-Open **http://localhost:5173** — branded Sign In page appears first. After login, green **Live** dot in header confirms WebSocket connected.
+Open **http://localhost:5173** — branded **Sign In / Sign Up** appears first. After login, green **Live** dot in header confirms WebSocket connected.
+
+The app does **not** require Docker. Grafana is optional (see below).
 
 ---
 
@@ -625,7 +638,32 @@ cd frontend
 
 Visit **http://localhost:5173**.
 
-### 3. MCP Server (Phase D — optional)
+### 3. Optional Grafana + Prometheus (Docker Desktop)
+
+Does **not** replace the app UI or APIs. Start **after** the backend is already on port 8000. **Docker Desktop must be running.**
+
+```powershell
+docker compose -f docker-compose.grafana.yml up -d
+```
+
+| URL | Login |
+|-----|--------|
+| http://localhost:3000 | Grafana — `admin` / `admin` |
+| http://localhost:9090 | Prometheus |
+
+Grafana probes `http://localhost:8000/api/system/health` via Blackbox. To stop Grafana only (app stays up):
+
+```powershell
+docker compose -f docker-compose.grafana.yml down
+```
+
+To send a Grafana-style alert into the live AIOps feed (WEBHOOK badge):
+
+```http
+POST /api/incidents/alert-webhook
+```
+
+### 4. MCP Server (Phase D — optional)
 
 ```bash
 cd backend
@@ -798,7 +836,7 @@ The backend recreates all tables automatically on startup.
 | Real-time Dashboard UI | WebSocket live updates + Notifications + Code Review panels |
 | Real-time Monitoring (Phase B) | Background scheduler + Server Monitor Agent |
 | Multi-user Access (Phase C) | JWT auth with role-based demo users |
-| LangChain configured | HybridAIClient via **google-genai** SDK (AIza + AQ auth keys) |
+| LangChain configured | `langchain-core` `ChatPromptTemplate` + Gemini (`google-genai`). **LangSmith is not used.** |
 | Custom enterprise tools & API connectors | `tool_registry.py` — **8 registered tools** |
 | Intelligent tool selection | `ToolSelectorAgent` — LLM + keyword fallback + short-term memory |
 | Human-in-the-Loop workflow | Approve/Reject/Undo on conflicts — user has final authority |
@@ -812,7 +850,7 @@ The backend recreates all tables automatically on startup.
 
 Repo: [Development-of-Enterprise-Workflow-Platform-with-Decision-Automation-System](https://github.com/J-Rakshitha/Development-of-Enterprise-Workflow-Platform-with-Decision-Automation-System)
 
-> Never commit `backend/.env` — it is gitignored.
+> Never commit `backend/.env` — it is gitignored. Also not on GitHub: DB backups, seed/restore scripts, fill helpers, and nested test repos.
 
 ## Build Plan
 
@@ -831,6 +869,7 @@ Repo: [Development-of-Enterprise-Workflow-Platform-with-Decision-Automation-Syst
 - [x] **Pre-deploy (M4 extension)** — Production simulate hide, admin monitored services, rate limiting, job queue, CI
 - [x] **95 automated tests** + live smoke test (9/9)
 - [x] **Live GitHub + live AIOps** — PR sync, ingest/webhook, JWT triggered_by, strict Coordinator link
+- [x] **Optional Grafana + Prometheus** — `docker-compose.grafana.yml` (app does not need Docker)
 - [ ] Render/Vercel deployment
 - [ ] Final evaluator demo (real GitHub users + Send Real Test Metrics)
 

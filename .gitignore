@@ -7,8 +7,18 @@ __pycache__/
 backend/.env.example
 .pytest_cache/
 
-# --- Local milestone documents (do not push to GitHub) ---
-docs/
+# --- Internship filled templates (track Milestone_Documents only) ---
+docs/*
+!docs/Milestone_Documents/
+docs/Milestone_Documents/*
+!docs/Milestone_Documents/*.xlsx
+!docs/Milestone_Documents/*.pptx
+
+# --- Local / secrets / one-off ---
+backend/backups/
+dev-collab-test-repo/
+tmp_*.txt
+verify_m4.txt
 
 # --- Frontend (Node) ---
 node_modules/
